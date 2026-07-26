@@ -21,3 +21,8 @@ Thumbs.db
 # IDE & Config
 .vscode/
 .idea/
+
+# Uploaded Files
+uploads/
+backend/uploads/
+
