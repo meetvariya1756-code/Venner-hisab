@@ -1,0 +1,14 @@
+{
+  "bank_id": "sbi_savings",
+  "bank_name": "State Bank of India",
+  "header_synonyms": {
+    "date": ["txn date", "date", "value date"],
+    "description": ["description", "narration", "particulars"],
+    "ref_no": ["ref no./cheque no.", "ref no", "chq no", "cheque no"],
+    "debit": ["debit", "withdrawal"],
+    "credit": ["credit", "deposit"],
+    "balance": ["balance"]
+  },
+  "date_formats": ["%d %b %Y", "%d/%m/%Y", "%d-%b-%Y"],
+  "ignore_narrations": ["BROUGHT FORWARD", "CARRIED FORWARD", "STATEMENT OF ACCOUNT"]
+}

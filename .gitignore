@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Local Database & Logs
+*.db
+*.sqlite3
+*.log
+backend/accounting.db
+accounting.db
+
+# Build outputs
+frontend/dist/
+frontend/build/
+.DS_Store
+Thumbs.db
+
+# IDE & Config
+.vscode/
+.idea/

@@ -1,0 +1,14 @@
+{
+  "bank_id": "kotak_savings",
+  "bank_name": "Kotak Mahindra Bank",
+  "header_synonyms": {
+    "date": ["date", "dt"],
+    "description": ["description", "narration", "particulars"],
+    "ref_no": ["chq/ref. no.", "chq/ref.no.", "chq/ref no", "ref no", "ref.no."],
+    "debit": ["withdrawal (dr.)", "withdrawal", "debit", "dr."],
+    "credit": ["deposit (cr.)", "deposit", "credit", "cr."],
+    "balance": ["balance"]
+  },
+  "date_formats": ["%d %b %Y", "%d/%m/%Y", "%d-%m-%Y"],
+  "ignore_narrations": ["Opening Balance", "Closing Balance", "Page ", "Statement Generated on"]
+}
