@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.default_data import seed_default_data
-from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export
+from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -14,7 +14,7 @@ with SessionLocal() as db:
 
 app = FastAPI(
     title="Multi-Account Statement Analyzer API",
-    description="E-Commerce Statement Analyzer & Transaction Ledger API",
+    description="E-Commerce Statement Analyzer & Mobile Upload Sync API",
     version="1.0.0"
 )
 
@@ -37,6 +37,7 @@ app.include_router(parties.router, prefix="/api")
 app.include_router(rules.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(mobile.router, prefix="/api")
 
 @app.get("/")
 def root():

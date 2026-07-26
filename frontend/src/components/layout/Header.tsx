@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2 } from 'lucide-react';
+import { Building2, Smartphone } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;
@@ -28,23 +28,28 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
         {[
           { id: 'platforms', label: 'Platforms & Stores' },
           { id: 'summary', label: 'Monthly Statement Summary' },
+          { id: 'mobile', label: 'Mobile Sync & Tracker', icon: Smartphone },
           { id: 'accounts', label: 'Bank Accounts' },
           { id: 'transactions', label: 'All Transactions' },
           { id: 'parties', label: 'Parties & Payees' },
           { id: 'rules', label: 'Rules & Categories' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        ].map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              {Icon && <Icon className="w-3.5 h-3.5 text-indigo-600" />}
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </nav>
     </header>
   );

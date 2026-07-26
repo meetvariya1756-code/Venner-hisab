@@ -7,6 +7,8 @@ import { TransactionsView } from './components/transactions/TransactionsView';
 import { PartiesView } from './components/parties/PartiesView';
 import { RulesView } from './components/rules/RulesView';
 import { UploadStatementModal } from './components/statements/UploadStatementModal';
+import { MobileUploadPortal } from './components/mobile/MobileUploadPortal';
+import { MobileChecklistView } from './components/mobile/MobileChecklistView';
 import type { BankAccount } from './types';
 import { api } from './api/client';
 
@@ -16,9 +18,16 @@ export function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<number>(0);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadAccountId, setUploadAccountId] = useState<number>(0);
+  const [isMobilePortal, setIsMobilePortal] = useState<boolean>(false);
 
   useEffect(() => {
-    loadAccounts();
+    // Check if user opened the mobile upload portal link
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('portal') === 'mobile') {
+      setIsMobilePortal(true);
+    } else {
+      loadAccounts();
+    }
   }, []);
 
   const loadAccounts = async () => {
@@ -45,6 +54,11 @@ export function App() {
     setIsUploadModalOpen(true);
   };
 
+  // Render standalone mobile portal for account holders
+  if (isMobilePortal) {
+    return <MobileUploadPortal />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-indigo-600 selection:text-white">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -62,6 +76,10 @@ export function App() {
             initialAccountId={selectedAccountId}
             onUploadClick={handleOpenUpload}
           />
+        )}
+
+        {activeTab === 'mobile' && (
+          <MobileChecklistView />
         )}
 
         {activeTab === 'accounts' && (

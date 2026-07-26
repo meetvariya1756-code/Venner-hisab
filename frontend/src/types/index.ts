@@ -19,7 +19,27 @@ export interface BankAccount {
   account_type: string;
   opening_balance: number;
   currency: string;
+  access_code?: string | null;
+  phone_number?: string | null;
   created_at: string;
+}
+
+export interface AccountChecklist {
+  account_id: number;
+  store_name: string;
+  account_holder?: string | null;
+  bank_name: string;
+  platform_name: string;
+  access_code?: string | null;
+  phone_number?: string | null;
+  status: 'RECEIVED' | 'PENDING';
+  uploaded_via_mobile: boolean;
+  uploaded_at?: string | null;
+  statement_id?: number | null;
+  filename?: string | null;
+  total_in: number;
+  total_out: number;
+  transaction_count: number;
 }
 
 export interface Category {

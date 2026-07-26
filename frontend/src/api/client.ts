@@ -1,4 +1,4 @@
-import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense } from '../types';
+import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist } from '../types';
 
 const API_BASE = '/api';
 
@@ -210,6 +210,28 @@ export const api = {
   async getAccountStatementSummary(accountId: number, yearMonth: string): Promise<StatementSummary> {
     const res = await fetch(`${API_BASE}/reports/account-summary/${accountId}?year_month=${yearMonth}`);
     return res.json();
+  },
+
+  // Mobile Sync & Checklist Methods
+  async getMobileChecklist(yearMonth: string): Promise<AccountChecklist[]> {
+    const res = await fetch(`${API_BASE}/mobile/checklist?year_month=${yearMonth}`);
+    return res.json();
+  },
+
+  async mobileUploadStatement(formData: FormData): Promise<any> {
+    const res = await fetch(`${API_BASE}/mobile/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Mobile upload failed');
+    }
+    return res.json();
+  },
+
+  getDownloadStatementUrl(statementId: number): string {
+    return `${API_BASE}/mobile/download/${statementId}`;
   },
 
   // Exports

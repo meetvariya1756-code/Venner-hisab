@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -19,6 +19,9 @@ class Statement(Base):
     total_debits = Column(Float, default=0.0)
     transaction_count = Column(Integer, default=0)
     status = Column(String(20), default="imported")  # "pending_review", "imported"
+    uploaded_via_mobile = Column(Boolean, default=False)
+    original_file_path = Column(String(500), nullable=True)  # Local storage path for download
+    uploader_name = Column(String(150), nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
     account = relationship("BankAccount", back_populates="statements")
