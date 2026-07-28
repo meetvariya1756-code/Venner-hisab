@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { BankAccount, Platform } from '../../types';
 import { api } from '../../api/client';
-import { Plus, Building2, Upload, Trash2, Eye, EyeOff, User, Landmark, Edit } from 'lucide-react';
+import { Plus, Building2, Upload, Trash2, Eye, EyeOff, User, Landmark, Edit, Phone } from 'lucide-react';
 
 interface AccountsViewProps {
   onUploadClick: (accountId: number) => void;
@@ -21,10 +21,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
   const [platformId, setPlatformId] = useState<number>(1);
   const [name, setName] = useState(''); // Store Name e.g., DAPPERDOM
   const [accountHolder, setAccountHolder] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountType, setAccountType] = useState('Savings');
   const [openingBalance, setOpeningBalance] = useState('0.0');
+  const [pdfPassword, setPdfPassword] = useState('');
 
   useEffect(() => {
     loadData();
@@ -53,10 +55,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
     setEditingAccountId(null);
     setName('');
     setAccountHolder('');
+    setPhoneNumber('');
     setBankName('');
     setAccountNumber('');
     setAccountType('Savings');
     setOpeningBalance('0.0');
+    setPdfPassword('');
     if (platforms.length > 0) setPlatformId(platforms[0].id);
     setIsModalOpen(true);
   };
@@ -66,10 +70,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
     setPlatformId(acc.platform_id || (platforms[0]?.id || 1));
     setName(acc.name);
     setAccountHolder(acc.account_holder || 'Prajapati Kiritbhai');
+    setPhoneNumber(acc.phone_number || '');
     setBankName(acc.bank_name);
     setAccountNumber(acc.account_number);
     setAccountType(acc.account_type);
     setOpeningBalance(acc.opening_balance.toString());
+    setPdfPassword(acc.pdf_password || '');
     setIsModalOpen(true);
   };
 
@@ -80,10 +86,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
         platform_id: platformId,
         name: name.trim(),
         account_holder: accountHolder.trim(),
+        phone_number: phoneNumber.trim(),
         bank_name: bankName.trim(),
         account_number: accountNumber.trim(),
         account_type: accountType,
-        opening_balance: parseFloat(openingBalance) || 0
+        opening_balance: parseFloat(openingBalance) || 0,
+        pdf_password: pdfPassword.trim() || null
       };
 
       if (editingAccountId) {
@@ -124,7 +132,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
         <div className="text-center text-slate-500 py-12">Loading bank accounts...</div>
       ) : accounts.length === 0 ? (
         <div className="glass-card p-12 text-center border-dashed border-slate-300 bg-white">
-          <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <Building2 className="w-12 h-12 text-slate-700 mx-auto mb-3" />
           <h3 className="font-bold text-slate-800 text-base">No Bank Accounts Found</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
             Get started by adding your first seller account (e.g. DAPPERDOM under Meesho for Prajapati Kiritbhai).
@@ -151,14 +159,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
                       <button
                         onClick={() => openEditModal(acc)}
                         title="Edit Account Details"
-                        className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                        className="text-slate-500 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(acc.id)}
                         title="Delete Account"
-                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                        className="text-slate-500 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -169,15 +177,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
 
                   <div className="mt-2 space-y-1 text-xs">
                     <div className="flex items-center gap-2 text-slate-700 font-medium">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <User className="w-3.5 h-3.5 text-slate-500" />
                       <span>{acc.account_holder || 'Prajapati Kiritbhai'}</span>
                     </div>
+                    {acc.phone_number && (
+                      <div className="flex items-center gap-2 text-slate-600 font-medium">
+                        <Phone className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{acc.phone_number}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 font-mono text-slate-500">
-                      <Landmark className="w-3.5 h-3.5 text-slate-400" />
+                      <Landmark className="w-3.5 h-3.5 text-slate-500" />
                       <span>{acc.bank_name}: {isVisible ? acc.account_number : acc.masked_account_number}</span>
                       <button
                         onClick={() => setShowFullAccount(prev => ({ ...prev, [acc.id]: !prev[acc.id] }))}
-                        className="text-slate-400 hover:text-slate-700"
+                        className="text-slate-500 hover:text-slate-700"
                       >
                         {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
@@ -187,7 +201,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
 
                 <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Opening Bal</span>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Opening Bal</span>
                     <span className="text-sm font-extrabold text-slate-900">
                       ₹{acc.opening_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
@@ -208,7 +222,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
 
       {/* Modal for creating / editing bank account */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="glass-card w-full max-w-md p-6 space-y-4 bg-white border-slate-200">
             <h3 className="font-bold text-slate-900 text-base">
               {editingAccountId ? 'Edit Store Bank Account' : 'Add Store Bank Account'}
@@ -249,6 +263,17 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
                   onChange={(e) => setAccountHolder(e.target.value)}
                   className="glass-input w-full font-medium"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Holder's Phone Number (for WhatsApp / SMS Reminders)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. +91 9876543210"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="glass-input w-full font-medium text-xs"
                 />
               </div>
 
@@ -302,6 +327,17 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
                     className="glass-input w-full"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Statement PDF Password (if protected)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. VARIY09042006 (leave blank if not protected)"
+                  value={pdfPassword}
+                  onChange={(e) => setPdfPassword(e.target.value)}
+                  className="glass-input w-full text-xs font-medium"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3">

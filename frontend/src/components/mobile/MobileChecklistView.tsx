@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { AccountChecklist } from '../../types';
 import { api } from '../../api/client';
-import { Smartphone, CheckCircle2, Clock, Download, MessageSquare, ExternalLink, RefreshCw, Search } from 'lucide-react';
+import { Smartphone, CheckCircle2, Clock, Download, MessageSquare, RefreshCw, Search } from 'lucide-react';
 
 export const MobileChecklistView: React.FC = () => {
   const [yearMonth, setYearMonth] = useState<string>('2026-02');
@@ -26,8 +26,12 @@ export const MobileChecklistView: React.FC = () => {
   };
 
   const handleSendWhatsAppReminder = (item: AccountChecklist) => {
+    // MAIN COMPANY NUMBER FOR REMINDERS
+    // If you need to change the phone number in the future, change it right here:
+    const MAIN_COMPANY_NO = "+91 83475 82055";
+    
     const mobilePortalUrl = `${window.location.origin}/?portal=mobile`;
-    const msg = `Hello ${item.account_holder || item.store_name},\n\nPlease upload your bank statement PDF for store *${item.store_name}* (${yearMonth}) using this mobile link:\n${mobilePortalUrl}\n\nThank you!`;
+    const msg = `Hello ${item.account_holder || item.store_name},\n\nPlease upload your bank statement PDF for store *${item.store_name}* (${yearMonth}) using this mobile link:\n${mobilePortalUrl}\n\nIf you need help, contact us at ${MAIN_COMPANY_NO}.\nThank you!`;
     const encoded = encodeURIComponent(msg);
     const phone = item.phone_number ? item.phone_number.replace(/\D/g, '') : '';
     const whatsappUrl = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
@@ -66,6 +70,21 @@ export const MobileChecklistView: React.FC = () => {
               className="glass-input bg-slate-50 font-bold text-xs py-1.5"
             />
           </div>
+
+          <button
+            onClick={async () => {
+              try {
+                const res = await api.sendEndOfMonthReminders(yearMonth);
+                alert(`Automated End-of-Month Reminders Generated for ${res.pending_count} pending store accounts!`);
+              } catch (e: any) {
+                alert(e.message || 'Failed to send reminders');
+              }
+            }}
+            className="mt-4 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            title="Send Automated End-of-Month Reminders to all pending stores"
+          >
+            <MessageSquare className="w-4 h-4" /> Send Month-End Reminders
+          </button>
 
           <button
             onClick={() => loadChecklist(yearMonth)}
@@ -109,14 +128,7 @@ export const MobileChecklistView: React.FC = () => {
         <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-slate-900 text-sm">Store Accounts Checklist for {yearMonth}</h3>
-            <a
-              href="/?portal=mobile"
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100"
-            >
-              Open Mobile App Portal <ExternalLink className="w-3 h-3" />
-            </a>
+            {/* The Mobile App Portal link has been hidden as requested */}
           </div>
 
           <div className="relative min-w-[240px]">

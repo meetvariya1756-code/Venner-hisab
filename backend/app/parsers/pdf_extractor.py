@@ -6,6 +6,7 @@ class PasswordProtectedPDFException(Exception):
     pass
 
 def check_and_extract_pdf_pages(file_path: str, password: str = None) -> List[Dict[str, Any]]:
+    print(f"DEBUG: Trying PDF decryption with password: {repr(password)}")
     # Step 1: Check password protection via pypdf
     try:
         reader = pypdf.PdfReader(file_path)
@@ -19,9 +20,13 @@ def check_and_extract_pdf_pages(file_path: str, password: str = None) -> List[Di
     except Exception as e:
         if isinstance(e, PasswordProtectedPDFException):
             raise e
-        # PyPDF error on encrypted PDF without password
+        # PyPDF error on encrypted PDF
         if "encrypted" in str(e).lower() or "password" in str(e).lower():
-            raise PasswordProtectedPDFException("PDF statement is password protected.")
+            if password:
+                raise PasswordProtectedPDFException("Invalid password for PDF statement.")
+            else:
+                raise PasswordProtectedPDFException("PDF statement is password protected.")
+        raise e
 
     pages_data = []
     try:
@@ -36,7 +41,11 @@ def check_and_extract_pdf_pages(file_path: str, password: str = None) -> List[Di
                 })
     except Exception as e:
         if "password" in str(e).lower() or "encrypted" in str(e).lower():
-            raise PasswordProtectedPDFException("PDF statement is password protected.")
+            if password:
+                raise PasswordProtectedPDFException("Invalid password for PDF statement.")
+            else:
+                raise PasswordProtectedPDFException("PDF statement is password protected.")
         raise e
 
     return pages_data
+

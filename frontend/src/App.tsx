@@ -9,6 +9,7 @@ import { RulesView } from './components/rules/RulesView';
 import { UploadStatementModal } from './components/statements/UploadStatementModal';
 import { MobileUploadPortal } from './components/mobile/MobileUploadPortal';
 import { MobileChecklistView } from './components/mobile/MobileChecklistView';
+import { Login } from './components/auth/Login';
 import type { BankAccount } from './types';
 import { api } from './api/client';
 
@@ -19,6 +20,9 @@ export function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadAccountId, setUploadAccountId] = useState<number>(0);
   const [isMobilePortal, setIsMobilePortal] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    () => sessionStorage.getItem('isAuthenticated') === 'true'
+  );
 
   useEffect(() => {
     // Check if user opened the mobile upload portal link
@@ -44,15 +48,33 @@ export function App() {
     setActiveTab('summary');
   };
 
-  const handleOpenUpload = (accId?: number) => {
-    if (accounts.length === 0) {
-      alert('Please create a bank account first before uploading a statement.');
-      setActiveTab('accounts');
-      return;
+  const handleOpenUpload = async (accId?: number) => {
+    try {
+      const data = await api.getAccounts();
+      setAccounts(data);
+      if (data.length === 0) {
+        alert('Please create a bank account first before uploading a statement.');
+        setActiveTab('accounts');
+        return;
+      }
+      setUploadAccountId(accId || data[0]?.id || 0);
+      setIsUploadModalOpen(true);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load accounts before uploading.');
     }
-    setUploadAccountId(accId || accounts[0]?.id || 0);
-    setIsUploadModalOpen(true);
   };
+
+  if (!isAuthenticated) {
+    return (
+      <Login 
+        onLogin={() => {
+          setIsAuthenticated(true);
+          sessionStorage.setItem('isAuthenticated', 'true');
+        }} 
+      />
+    );
+  }
 
   // Render standalone mobile portal for account holders
   if (isMobilePortal) {

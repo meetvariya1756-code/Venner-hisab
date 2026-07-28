@@ -26,3 +26,15 @@ Thumbs.db
 uploads/
 backend/uploads/
 
+# Local tool binaries
+cloudflared.exe
+
+# Local scratch directories
+scratch/
+
+# Additional dev builds
+dev-dist/
+frontend/dev-dist/
+
+# Leftover root package-lock
+package-lock.json

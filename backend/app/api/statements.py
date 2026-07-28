@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.models.account import BankAccount
 from app.parsers.pdf_extractor import PasswordProtectedPDFException
 from app.parsers.generic_parser import StatementParserEngine
 from app.services.statement_service import StatementService
@@ -29,6 +30,15 @@ async def parse_statement_preview(
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
+
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+
+    # Auto-inject password from DB or fallback for FABREECART
+    if not password and acc:
+        if acc.pdf_password:
+            password = acc.pdf_password
+        elif acc.name and "FABREECART" in acc.name.upper():
+            password = "VARIY09042006"
 
     try:
         parsing_result = parser_engine.parse_statement(tmp_path, password=password)
@@ -70,17 +80,26 @@ async def confirm_statement_import(
     db: Session = Depends(get_db)
 ):
     file_bytes = await file.read()
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
+    # Auto-inject password from DB or fallback for FABREECART
+    if not password and acc:
+        if acc.pdf_password:
+            password = acc.pdf_password
+        elif acc.name and "FABREECART" in acc.name.upper():
+            password = "VARIY09042006"
+
     try:
         parsing_result = parser_engine.parse_statement(tmp_path, password=password)
-    except PasswordProtectedPDFException:
+    except PasswordProtectedPDFException as pe:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        raise HTTPException(status_code=401, detail="Password protected PDF statement.")
+        error_msg = str(pe) if str(pe) else "Password-protected PDF. Please enter the password."
+        raise HTTPException(status_code=401, detail=error_msg)
 
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
@@ -104,3 +123,4 @@ async def confirm_statement_import(
         "transaction_count": stmt.transaction_count,
         "year_month": stmt.year_month
     }
+

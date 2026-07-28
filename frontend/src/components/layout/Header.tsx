@@ -15,10 +15,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
         </div>
         <div>
           <h1 className="font-bold text-base text-slate-900 tracking-tight flex items-center gap-2">
-            Multi-Account Statement Analyzer
-            <span className="text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold">
-              Pro v1.0
-            </span>
+            Statement Analyzer
           </h1>
           <p className="text-xs text-slate-500">Platform-Wise & Month-Wise Bank Statement Reconciliation</p>
         </div>
@@ -31,19 +28,16 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           { id: 'mobile', label: 'Mobile Sync & Tracker', icon: Smartphone },
           { id: 'accounts', label: 'Bank Accounts' },
           { id: 'transactions', label: 'All Transactions' },
-          { id: 'parties', label: 'Parties & Payees' },
-          { id: 'rules', label: 'Rules & Categories' },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === tab.id
-                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${activeTab === tab.id
+                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
             >
               {Icon && <Icon className="w-3.5 h-3.5 text-indigo-600" />}
               <span>{tab.label}</span>

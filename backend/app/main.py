@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import engine, Base, SessionLocal, sync_database_schema
 from app.core.default_data import seed_default_data
 from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile
 
-# Create database tables
+# Create database tables & sync schema for missing columns
 Base.metadata.create_all(bind=engine)
+sync_database_schema()
 
 # Seed default data on startup
 with SessionLocal() as db:

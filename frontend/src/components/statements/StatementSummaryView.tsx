@@ -20,7 +20,7 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
 
   const [summary, setSummary] = useState<StatementSummary | null>(null);
   const [_loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
+  const [activeTab, setActiveTab] = useState<string>('ALL');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -81,17 +81,27 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
 
   const currentAccount = accounts.find(a => a.id === selectedAccountId);
 
+  const platformsInEntries = Array.from(new Set(
+    [...(summary?.in_entries || []), ...(summary?.out_entries || [])]
+      .map(tx => tx.party)
+      .filter(party => party && typeof party === 'string' && party.trim() !== '')
+  )).sort();
+
   // Filter entries based on activeTab and search
   const getDisplayEntries = () => {
     if (!summary) return [];
     let entries: any[] = [];
-    if (activeTab === 'IN') entries = summary.in_entries;
-    else if (activeTab === 'OUT') entries = summary.out_entries;
-    else {
-      // Combined list
-      const inTagged = summary.in_entries.map(e => ({ ...e, type: 'IN' }));
-      const outTagged = summary.out_entries.map(e => ({ ...e, type: 'OUT' }));
-      entries = [...inTagged, ...outTagged].sort((a, b) => a.date.localeCompare(b.date));
+    const inTagged = summary.in_entries.map(e => ({ ...e, type: 'IN' }));
+    const outTagged = summary.out_entries.map(e => ({ ...e, type: 'OUT' }));
+    const allEntries = [...inTagged, ...outTagged].sort((a, b) => a.date.localeCompare(b.date));
+
+    if (activeTab === 'IN') entries = summary.in_entries.map(e => ({ ...e, type: 'IN' }));
+    else if (activeTab === 'OUT') entries = summary.out_entries.map(e => ({ ...e, type: 'OUT' }));
+    else if (activeTab.startsWith('PLATFORM:')) {
+      const platformName = activeTab.split('PLATFORM:')[1];
+      entries = allEntries.filter(e => e.party === platformName);
+    } else {
+      entries = allEntries;
     }
 
     if (search.trim()) {
@@ -173,7 +183,7 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
 
       {!summary || summary.total_transactions === 0 ? (
         <div className="glass-card p-12 text-center bg-white border-dashed border-slate-300">
-          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <FileText className="w-12 h-12 text-slate-700 mx-auto mb-3" />
           <h3 className="font-bold text-slate-800 text-base">No Bank Statement Found for this Period</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
             No imported transactions found for {currentAccount?.name || 'this account'} for period {selectedYearMonth}. Please upload the bank statement PDF.
@@ -235,7 +245,7 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
           {/* Transaction Filter Tabs & List */}
           <div className="glass-card bg-white overflow-hidden">
             <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl">
                 <button
                   onClick={() => setActiveTab('ALL')}
                   className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
@@ -260,10 +270,24 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                 >
                   OUT Entries (Paid) ({summary.out_entries_count})
                 </button>
+                {platformsInEntries.map(platform => {
+                  const pEntries = [...(summary?.in_entries || []), ...(summary?.out_entries || [])].filter(e => e.party === platform);
+                  return (
+                    <button
+                      key={`PLATFORM:${platform}`}
+                      onClick={() => setActiveTab(`PLATFORM:${platform}`)}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        activeTab === `PLATFORM:${platform}` ? 'bg-indigo-600 text-white shadow-xs' : 'text-indigo-700 hover:bg-indigo-100/50'
+                      }`}
+                    >
+                      {platform as string} All Entries ({pEntries.length})
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="relative min-w-[240px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   placeholder="Filter narration, UPI, ref..."
@@ -291,7 +315,7 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {displayEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-6 text-center text-slate-400">No matching entries found</td>
+                      <td colSpan={7} className="py-6 text-center text-slate-500">No matching entries found</td>
                     </tr>
                   ) : (
                     displayEntries.map((tx, idx) => {
@@ -335,6 +359,34 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                     })
                   )}
                 </tbody>
+                {activeTab.startsWith('PLATFORM:') && displayEntries.length > 0 && (
+                  <tfoot className="bg-indigo-50/50 border-t-2 border-indigo-200">
+                    <tr>
+                      <td colSpan={4} className="py-4 px-4 text-right uppercase text-indigo-900 font-black text-xs tracking-wider">
+                        TOTALS FOR {activeTab.split('PLATFORM:')[1]}:
+                      </td>
+                      <td className="py-4 px-4 text-right text-emerald-700 font-bold font-mono text-sm">
+                        + ₹{displayEntries.filter(e => e.type === 'IN' || summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 px-4 text-right text-rose-700 font-bold font-mono text-sm">
+                        - ₹{displayEntries.filter(e => e.type === 'OUT' && !summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 px-4"></td>
+                    </tr>
+                    <tr className="border-t border-indigo-100">
+                      <td colSpan={4} className="py-4 px-4 text-right uppercase text-slate-500 font-bold text-xs tracking-wider">
+                        NET {activeTab.split('PLATFORM:')[1]} PAYOUT:
+                      </td>
+                      <td colSpan={2} className="py-4 px-4 text-right font-black font-mono text-base text-indigo-900">
+                        ₹{(
+                          displayEntries.filter(e => e.type === 'IN' || summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0) -
+                          displayEntries.filter(e => e.type === 'OUT' && !summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0)
+                        ).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 px-4"></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

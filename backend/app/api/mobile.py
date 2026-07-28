@@ -21,15 +21,32 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/auth", response_model=MobileAuthOut)
 def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(get_db)):
-    code = payload.access_code.strip().upper()
-    acc = db.query(BankAccount).filter(BankAccount.access_code == code).first()
-    if not acc:
-        acc = db.query(BankAccount).filter(BankAccount.name.ilike(code)).first()
-    
+    store_query = payload.store_name.strip()
+    holder_query = payload.account_holder.strip() if payload.account_holder else ""
+    code_query = payload.access_code.strip() if payload.access_code else ""
+
+    acc = None
+    # Search by Store Name
+    accs = db.query(BankAccount).filter(BankAccount.name.ilike(store_query)).all()
+    if not accs:
+        accs = db.query(BankAccount).filter(BankAccount.name.ilike(f"%{store_query}%")).all()
+
+    if accs:
+        if holder_query:
+            for a in accs:
+                if a.account_holder and holder_query.lower() in a.account_holder.lower():
+                    acc = a
+                    break
+        if not acc:
+            acc = accs[0]
+
+    if not acc and code_query:
+        acc = db.query(BankAccount).filter(BankAccount.access_code.ilike(code_query)).first()
+
     if not acc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid Store Access Code. Please check the code provided by the store admin."
+            detail=f"Store Account '{store_query}' not found. Please check your Store Name and Account Holder Name."
         )
 
     return MobileAuthOut(
@@ -37,8 +54,67 @@ def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(
         store_name=acc.name,
         account_holder=acc.account_holder,
         bank_name=acc.bank_name,
-        platform_name=acc.platform.name if acc.platform else "General"
+        account_number=acc.account_number,
+        masked_account_number=acc.masked_account_number,
+        account_type=acc.account_type,
+        opening_balance=acc.opening_balance,
+        currency=acc.currency,
+        platform_name=acc.platform.name if acc.platform else "General",
+        phone_number=acc.phone_number,
+        pdf_password=acc.pdf_password
     )
+
+@router.get("/statements/{account_id}")
+def get_mobile_account_statements(account_id: int, db: Session = Depends(get_db)):
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    stmts = db.query(Statement).filter(Statement.account_id == account_id).order_by(Statement.uploaded_at.desc()).all()
+    return [{
+        "id": s.id,
+        "year_month": s.year_month,
+        "filename": s.filename,
+        "total_in": s.total_credits,
+        "total_out": s.total_debits,
+        "transaction_count": s.transaction_count,
+        "uploaded_at": s.uploaded_at,
+        "uploaded_via_mobile": s.uploaded_via_mobile or False
+    } for s in stmts]
+
+@router.post("/send-reminders")
+def trigger_end_of_month_reminders(year_month: Optional[str] = None, db: Session = Depends(get_db)):
+    if not year_month:
+        today = datetime.now()
+        year_month = today.strftime("%Y-%m")
+
+    accounts = db.query(BankAccount).all()
+    reminders = []
+
+    for acc in accounts:
+        stmt = db.query(Statement).filter(
+            Statement.account_id == acc.id,
+            Statement.year_month == year_month
+        ).first()
+
+        if not stmt:
+            msg = f"Month-End Reminder for {acc.name} ({year_month}): Please upload your bank statement PDF for {acc.name} ({acc.bank_name})."
+            reminders.append({
+                "account_id": acc.id,
+                "store_name": acc.name,
+                "account_holder": acc.account_holder,
+                "phone_number": acc.phone_number,
+                "bank_name": acc.bank_name,
+                "year_month": year_month,
+                "message": msg
+            })
+
+    return {
+        "success": True,
+        "year_month": year_month,
+        "pending_count": len(reminders),
+        "reminders": reminders
+    }
 
 @router.post("/upload")
 async def upload_statement_from_mobile(
@@ -64,12 +140,20 @@ async def upload_statement_from_mobile(
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
+    # Auto-inject password from DB or fallback for FABREECART
+    if not password and acc:
+        if acc.pdf_password:
+            password = acc.pdf_password
+        elif acc.name and "FABREECART" in acc.name.upper():
+            password = "VARIY09042006"
+
     try:
         parsing_result = parser_engine.parse_statement(tmp_path, password=password)
-    except PasswordProtectedPDFException:
+    except PasswordProtectedPDFException as pe:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        raise HTTPException(status_code=401, detail="Password-protected PDF. Please enter the password.")
+        error_msg = str(pe) if str(pe) else "Password-protected PDF. Please enter the password."
+        raise HTTPException(status_code=401, detail=error_msg)
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

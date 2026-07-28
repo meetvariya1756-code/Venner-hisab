@@ -31,6 +31,7 @@ class AccountCreate(BaseModel):
     currency: str = "INR"
     access_code: Optional[str] = None
     phone_number: Optional[str] = None
+    pdf_password: Optional[str] = None  # PDF password hint for mobile
 
 class AccountOut(BaseModel):
     id: int
@@ -46,21 +47,45 @@ class AccountOut(BaseModel):
     currency: str
     access_code: Optional[str] = None
     phone_number: Optional[str] = None
+    pdf_password: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+# Mobile Account Info (for personalized mobile portal)
+class AccountInfoOut(BaseModel):
+    account_id: int
+    store_name: str
+    account_holder: Optional[str] = None
+    bank_name: str
+    masked_account_number: str
+    account_type: str
+    platform_name: str
+    phone_number: Optional[str] = None
+    pdf_password: Optional[str] = None  # Pre-fill hint
+    access_code: str
+
 # Mobile App & Sync Schemas
 class MobileAuthRequest(BaseModel):
-    access_code: str
+    store_name: str
+    account_holder: Optional[str] = None
+    access_code: Optional[str] = None
 
 class MobileAuthOut(BaseModel):
     store_id: int
     store_name: str
     account_holder: Optional[str] = None
     bank_name: str
+    account_number: str
+    masked_account_number: str
+    account_type: str
+    opening_balance: float
+    currency: str
     platform_name: str
+    phone_number: Optional[str] = None
+    pdf_password: Optional[str] = None
+
 
 class AccountChecklistOut(BaseModel):
     account_id: int
@@ -78,6 +103,9 @@ class AccountChecklistOut(BaseModel):
     total_in: float = 0.0
     total_out: float = 0.0
     transaction_count: int = 0
+    in_count: int = 0   # Number of credit/IN entries
+    out_count: int = 0  # Number of debit/OUT entries
+
 
 # Category Schemas
 class CategoryCreate(BaseModel):

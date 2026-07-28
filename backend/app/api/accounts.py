@@ -35,7 +35,9 @@ def create_account(acc: AccountCreate, db: Session = Depends(get_db)):
         account_number=acc.account_number.strip(),
         account_type=acc.account_type,
         opening_balance=acc.opening_balance,
-        currency=acc.currency
+        currency=acc.currency,
+        phone_number=acc.phone_number.strip() if acc.phone_number else None,
+        pdf_password=acc.pdf_password.strip() if acc.pdf_password else None
     )
     db.add(db_acc)
     db.commit()
@@ -58,6 +60,8 @@ def update_account(account_id: int, acc: AccountCreate, db: Session = Depends(ge
     db_acc.account_number = acc.account_number.strip()
     db_acc.account_type = acc.account_type
     db_acc.opening_balance = acc.opening_balance
+    db_acc.phone_number = acc.phone_number.strip() if acc.phone_number else None
+    db_acc.pdf_password = acc.pdf_password.strip() if acc.pdf_password else None
 
     db.commit()
     db.refresh(db_acc)

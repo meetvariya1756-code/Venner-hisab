@@ -21,6 +21,7 @@ export interface BankAccount {
   currency: string;
   access_code?: string | null;
   phone_number?: string | null;
+  pdf_password?: string | null;
   created_at: string;
 }
 

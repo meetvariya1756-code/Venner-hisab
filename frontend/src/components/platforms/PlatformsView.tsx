@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Platform, BankAccount } from '../../types';
 import { api } from '../../api/client';
-import { ShoppingBag, Plus, Building2, Upload, User, Landmark, ArrowUpRight, Edit } from 'lucide-react';
+import { ShoppingBag, Plus, Building2, Upload, User, Landmark, ArrowUpRight, Edit, Phone } from 'lucide-react';
 
 interface PlatformsViewProps {
   onSelectAccount: (accountId: number) => void;
@@ -24,10 +24,12 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
   const [editPlatformId, setEditPlatformId] = useState<number>(1);
   const [editName, setEditName] = useState('');
   const [editAccountHolder, setEditAccountHolder] = useState('Prajapati Kiritbhai');
+  const [editPhoneNumber, setEditPhoneNumber] = useState('');
   const [editBankName, setEditBankName] = useState('Kotak Mahindra Bank');
   const [editAccountNumber, setEditAccountNumber] = useState('');
   const [editAccountType, setEditAccountType] = useState('Savings');
   const [editOpeningBalance, setEditOpeningBalance] = useState('0.0');
+  const [editPdfPassword, setEditPdfPassword] = useState('');
 
   useEffect(() => {
     loadPlatforms();
@@ -84,10 +86,12 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
     setEditPlatformId(acc.platform_id || selectedPlatformId);
     setEditName(acc.name);
     setEditAccountHolder(acc.account_holder || 'Prajapati Kiritbhai');
+    setEditPhoneNumber(acc.phone_number || '');
     setEditBankName(acc.bank_name);
     setEditAccountNumber(acc.account_number);
     setEditAccountType(acc.account_type);
     setEditOpeningBalance(acc.opening_balance.toString());
+    setEditPdfPassword(acc.pdf_password || '');
     setIsEditModalOpen(true);
   };
 
@@ -99,10 +103,12 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
         platform_id: editPlatformId,
         name: editName.trim(),
         account_holder: editAccountHolder.trim(),
+        phone_number: editPhoneNumber.trim(),
         bank_name: editBankName.trim(),
         account_number: editAccountNumber.trim(),
         account_type: editAccountType,
-        opening_balance: parseFloat(editOpeningBalance) || 0
+        opening_balance: parseFloat(editOpeningBalance) || 0,
+        pdf_password: editPdfPassword.trim() || null
       });
       setIsEditModalOpen(false);
       loadPlatforms();
@@ -168,7 +174,7 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
 
         {accounts.length === 0 ? (
           <div className="glass-card p-12 text-center border-dashed border-slate-300 bg-white">
-            <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <Building2 className="w-12 h-12 text-slate-700 mx-auto mb-3" />
             <h4 className="font-bold text-slate-800 text-sm">No Store Accounts under {currentPlatform?.name}</h4>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               Add your store accounts (e.g. DAPPERDOM, VIMS, VENNER NEW) to start uploading monthly bank statements.
@@ -189,7 +195,7 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
                     <button
                       onClick={() => openEditModal(acc)}
                       title="Edit Account Details"
-                      className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                      className="text-slate-500 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
@@ -197,11 +203,17 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
 
                   <div className="mt-4 space-y-1">
                     <div className="flex items-center gap-2 text-xs text-slate-700 font-semibold">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <User className="w-3.5 h-3.5 text-slate-500" />
                       <span>{acc.account_holder || 'Prajapati Kiritbhai'}</span>
                     </div>
+                    {acc.phone_number && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                        <Phone className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{acc.phone_number}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-                      <Landmark className="w-3.5 h-3.5 text-slate-400" />
+                      <Landmark className="w-3.5 h-3.5 text-slate-500" />
                       <span>{acc.bank_name}: {acc.masked_account_number}</span>
                     </div>
                   </div>
@@ -230,7 +242,7 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
 
       {/* Add Platform Modal */}
       {isAddPlatformOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="glass-card w-full max-w-sm p-6 space-y-4 bg-white border-slate-200">
             <h3 className="font-bold text-slate-900 text-base">Add E-Commerce Platform</h3>
             <form onSubmit={handleCreatePlatform} className="space-y-4">
@@ -268,7 +280,7 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
 
       {/* Edit Account Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="glass-card w-full max-w-md p-6 space-y-4 bg-white border-slate-200">
             <h3 className="font-bold text-slate-900 text-base">Edit Store Account Details</h3>
             <form onSubmit={handleSaveEditAccount} className="space-y-4">
@@ -307,6 +319,17 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
                   onChange={(e) => setEditAccountHolder(e.target.value)}
                   className="glass-input w-full font-medium"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Holder's Phone Number (for WhatsApp / SMS Reminders)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. +91 9876543210"
+                  value={editPhoneNumber}
+                  onChange={(e) => setEditPhoneNumber(e.target.value)}
+                  className="glass-input w-full font-medium text-xs"
                 />
               </div>
 
@@ -360,6 +383,17 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
                     className="glass-input w-full"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Statement PDF Password (if protected)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. VARIY09042006 (leave blank if not protected)"
+                  value={editPdfPassword}
+                  onChange={(e) => setEditPdfPassword(e.target.value)}
+                  className="glass-input w-full text-xs font-medium"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3">

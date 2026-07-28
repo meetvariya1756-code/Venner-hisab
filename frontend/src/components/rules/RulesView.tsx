@@ -70,10 +70,10 @@ export const RulesView: React.FC = () => {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
           Categorization Rules & Chart of Accounts
         </h2>
-        <p className="text-xs text-slate-400 font-medium">Configure pattern matching rules and manage category hierarchies</p>
+        <p className="text-xs text-slate-500 font-medium">Configure pattern matching rules and manage category hierarchies</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -81,12 +81,12 @@ export const RulesView: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Create Rule */}
           <div className="glass-card p-5">
-            <h3 className="font-bold text-white text-base mb-3 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 text-base mb-3 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-400" /> Create New Categorization Rule
             </h3>
             <form onSubmit={handleCreateRule} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Rule Name</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Rule Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Amazon Settlement"
@@ -98,7 +98,7 @@ export const RulesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Pattern String</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Pattern String</label>
                 <input
                   type="text"
                   placeholder="e.g. AMAZON"
@@ -110,11 +110,11 @@ export const RulesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Match Type</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Match Type</label>
                 <select
                   value={matchType}
                   onChange={(e) => setMatchType(e.target.value)}
-                  className="glass-input w-full bg-slate-900"
+                  className="glass-input w-full bg-white"
                 >
                   <option value="KEYWORD">Keyword Match</option>
                   <option value="REGEX">Regex Pattern</option>
@@ -123,11 +123,11 @@ export const RulesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Target Category</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Target Category</label>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(Number(e.target.value))}
-                  className="glass-input w-full bg-slate-900"
+                  className="glass-input w-full bg-white"
                 >
                   <option value={0}>Select Category...</option>
                   {categories.map((c) => (
@@ -149,7 +149,7 @@ export const RulesView: React.FC = () => {
 
           {/* Active Rules List */}
           <div className="glass-card p-5">
-            <h3 className="font-bold text-white text-base mb-3 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 text-base mb-3 flex items-center gap-2">
               <Sliders className="w-4 h-4 text-indigo-400" /> Active Matching Rules ({rules.length})
             </h3>
 
@@ -157,11 +157,11 @@ export const RulesView: React.FC = () => {
               {rules.map((r) => {
                 const cat = categories.find(c => c.id === r.category_id);
                 return (
-                  <div key={r.id} className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                  <div key={r.id} className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm">{r.name}</span>
-                        <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono font-semibold">
+                        <span className="font-bold text-slate-900 text-sm">{r.name}</span>
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-semibold">
                           {r.match_type}
                         </span>
                       </div>
@@ -171,7 +171,7 @@ export const RulesView: React.FC = () => {
                     </div>
 
                     {cat && (
-                      <span className="text-xs font-semibold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+                      <span className="text-xs font-semibold text-slate-700 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
                         {cat.name}
                       </span>
                     )}
@@ -185,12 +185,12 @@ export const RulesView: React.FC = () => {
         {/* Right Column: Category Hierarchy */}
         <div className="space-y-6">
           <div className="glass-card p-5">
-            <h3 className="font-bold text-white text-base mb-3 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 text-base mb-3 flex items-center gap-2">
               <FolderTree className="w-4 h-4 text-purple-400" /> Add Custom Category
             </h3>
             <form onSubmit={handleCreateCategory} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Category Name</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Category Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Rent & Utilities"
@@ -202,11 +202,11 @@ export const RulesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Type</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Type</label>
                 <select
                   value={catType}
                   onChange={(e) => setCatType(e.target.value as any)}
-                  className="glass-input w-full bg-slate-900"
+                  className="glass-input w-full bg-white"
                 >
                   <option value="INCOME">Income</option>
                   <option value="EXPENSE">Expense</option>
@@ -214,12 +214,12 @@ export const RulesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Category Color</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Category Color</label>
                 <input
                   type="color"
                   value={catColor}
                   onChange={(e) => setCatColor(e.target.value)}
-                  className="w-full h-8 rounded-lg border border-slate-700 bg-slate-900 cursor-pointer"
+                  className="w-full h-8 rounded-lg border border-slate-300 bg-white cursor-pointer"
                 />
               </div>
 
@@ -233,13 +233,13 @@ export const RulesView: React.FC = () => {
           </div>
 
           <div className="glass-card p-5">
-            <h3 className="font-bold text-white text-base mb-3">Chart of Accounts</h3>
+            <h3 className="font-bold text-slate-900 text-base mb-3">Chart of Accounts</h3>
             <div className="space-y-2">
               {categories.map((c) => (
-                <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/40 text-xs">
+                <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                    <span className="font-semibold text-slate-200">{c.name}</span>
+                    <span className="font-semibold text-slate-800">{c.name}</span>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                     c.type === 'INCOME' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
