@@ -97,7 +97,9 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
 
     if (activeTab === 'IN') entries = summary.in_entries.map(e => ({ ...e, type: 'IN' }));
     else if (activeTab === 'OUT') entries = summary.out_entries.map(e => ({ ...e, type: 'OUT' }));
-    else if (activeTab.startsWith('PLATFORM:')) {
+    else if (activeTab === 'OTHER') {
+      entries = allEntries.filter(e => !e.party || !platformsInEntries.includes(e.party));
+    } else if (activeTab.startsWith('PLATFORM:')) {
       const platformName = activeTab.split('PLATFORM:')[1];
       entries = allEntries.filter(e => e.party === platformName);
     } else {
@@ -284,6 +286,20 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                     </button>
                   );
                 })}
+                {(() => {
+                  const otherCount = [...(summary?.in_entries || []), ...(summary?.out_entries || [])].filter(e => !e.party || !platformsInEntries.includes(e.party)).length;
+                  if (otherCount === 0) return null;
+                  return (
+                    <button
+                      onClick={() => setActiveTab('OTHER')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        activeTab === 'OTHER' ? 'bg-purple-600 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-100/50'
+                      }`}
+                    >
+                      Other Entries ({otherCount})
+                    </button>
+                  );
+                })()}
               </div>
 
               <div className="relative min-w-[240px]">
@@ -380,6 +396,9 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                   } else if (activeTab === 'OUT') {
                     totalsHeader = 'OUT ENTRIES (PAID)';
                     netHeader = 'TOTAL OUT PAID';
+                  } else if (activeTab === 'OTHER') {
+                    totalsHeader = 'OTHER ENTRIES (UPI, ATM & OTHERS)';
+                    netHeader = 'NET OTHER PAYOUT / BALANCE';
                   } else if (activeTab.startsWith('PLATFORM:')) {
                     const pName = activeTab.split('PLATFORM:')[1].toUpperCase();
                     totalsHeader = pName;
