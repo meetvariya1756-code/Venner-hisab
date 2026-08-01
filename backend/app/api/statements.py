@@ -37,7 +37,7 @@ async def parse_statement_preview(
     if not password and acc:
         if acc.pdf_password:
             password = acc.pdf_password
-        elif acc.name and "FABREECART" in acc.name.upper():
+        elif acc.name and "FABREECART" in acc.name.replace(" ", "").replace("_", "").replace("-", "").upper():
             password = "VARIY09042006"
 
     try:
@@ -90,7 +90,7 @@ async def confirm_statement_import(
     if not password and acc:
         if acc.pdf_password:
             password = acc.pdf_password
-        elif acc.name and "FABREECART" in acc.name.upper():
+        elif acc.name and "FABREECART" in acc.name.replace(" ", "").replace("_", "").replace("-", "").upper():
             password = "VARIY09042006"
 
     try:

@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 from typing import List, Optional
 from datetime import datetime
@@ -19,29 +20,74 @@ parser_engine = StatementParserEngine()
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "statements")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+def normalize_text(s: Optional[str]) -> str:
+    if not s:
+        return ""
+    return re.sub(r'[^a-zA-Z0-9]', '', str(s)).lower()
+
 @router.post("/auth", response_model=MobileAuthOut)
 def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(get_db)):
     store_query = payload.store_name.strip()
     holder_query = payload.account_holder.strip() if payload.account_holder else ""
     code_query = payload.access_code.strip() if payload.access_code else ""
 
+    norm_store = normalize_text(store_query)
+    norm_holder = normalize_text(holder_query)
+    norm_code = normalize_text(code_query)
+
+    all_accs = db.query(BankAccount).all()
+    scored_matches = []
+
+    for a in all_accs:
+        a_name = normalize_text(a.name)
+        a_holder = normalize_text(a.account_holder)
+        a_code = normalize_text(a.access_code)
+        a_phone = normalize_text(a.phone_number)
+
+        score = 0
+
+        # Match store_query against store name, holder, code, phone
+        if norm_store:
+            if norm_store == a_name:
+                score += 60
+            elif a_name and (norm_store in a_name or a_name in norm_store):
+                score += 40
+            elif norm_store == a_holder:
+                score += 35
+            elif a_holder and (norm_store in a_holder or a_holder in norm_store):
+                score += 25
+            elif a_code and (norm_store == a_code or norm_store in a_code):
+                score += 35
+            elif a_phone and (norm_store == a_phone or norm_store in a_phone):
+                score += 30
+
+        # Match holder_query against account holder name or store name
+        if norm_holder:
+            if norm_holder == a_holder:
+                score += 50
+            elif a_holder and (norm_holder in a_holder or a_holder in norm_holder):
+                score += 35
+            elif norm_holder == a_name:
+                score += 30
+            elif a_name and (norm_holder in a_name or a_name in norm_holder):
+                score += 25
+
+        # Match code_query
+        if norm_code:
+            if a_code and (norm_code == a_code or norm_code in a_code):
+                score += 50
+
+        if score > 0:
+            scored_matches.append((score, a))
+
     acc = None
-    # Search by Store Name
-    accs = db.query(BankAccount).filter(BankAccount.name.ilike(store_query)).all()
-    if not accs:
-        accs = db.query(BankAccount).filter(BankAccount.name.ilike(f"%{store_query}%")).all()
+    if scored_matches:
+        scored_matches.sort(key=lambda x: x[0], reverse=True)
+        acc = scored_matches[0][1]
 
-    if accs:
-        if holder_query:
-            for a in accs:
-                if a.account_holder and holder_query.lower() in a.account_holder.lower():
-                    acc = a
-                    break
-        if not acc:
-            acc = accs[0]
-
-    if not acc and code_query:
-        acc = db.query(BankAccount).filter(BankAccount.access_code.ilike(code_query)).first()
+    if not acc and (code_query or store_query):
+        search_term = code_query or store_query
+        acc = db.query(BankAccount).filter(BankAccount.access_code.ilike(f"%{search_term}%")).first()
 
     if not acc:
         raise HTTPException(
@@ -144,7 +190,7 @@ async def upload_statement_from_mobile(
     if not password and acc:
         if acc.pdf_password:
             password = acc.pdf_password
-        elif acc.name and "FABREECART" in acc.name.upper():
+        elif acc.name and "FABREECART" in acc.name.replace(" ", "").replace("_", "").replace("-", "").upper():
             password = "VARIY09042006"
 
     try:
