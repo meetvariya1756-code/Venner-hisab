@@ -359,34 +359,59 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
                     })
                   )}
                 </tbody>
-                {activeTab.startsWith('PLATFORM:') && displayEntries.length > 0 && (
-                  <tfoot className="bg-indigo-50/50 border-t-2 border-indigo-200">
-                    <tr>
-                      <td colSpan={4} className="py-4 px-4 text-right uppercase text-indigo-900 font-black text-xs tracking-wider">
-                        TOTALS FOR {activeTab.split('PLATFORM:')[1]}:
-                      </td>
-                      <td className="py-4 px-4 text-right text-emerald-700 font-bold font-mono text-sm">
-                        + ₹{displayEntries.filter(e => e.type === 'IN' || summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-4 px-4 text-right text-rose-700 font-bold font-mono text-sm">
-                        - ₹{displayEntries.filter(e => e.type === 'OUT' && !summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-4 px-4"></td>
-                    </tr>
-                    <tr className="border-t border-indigo-100">
-                      <td colSpan={4} className="py-4 px-4 text-right uppercase text-slate-500 font-bold text-xs tracking-wider">
-                        NET {activeTab.split('PLATFORM:')[1]} PAYOUT:
-                      </td>
-                      <td colSpan={2} className="py-4 px-4 text-right font-black font-mono text-base text-indigo-900">
-                        ₹{(
-                          displayEntries.filter(e => e.type === 'IN' || summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0) -
-                          displayEntries.filter(e => e.type === 'OUT' && !summary.in_entries.some((x: any) => x.id === e.id)).reduce((sum, e) => sum + (e.amount || 0), 0)
-                        ).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-4 px-4"></td>
-                    </tr>
-                  </tfoot>
-                )}
+                {displayEntries.length > 0 && (() => {
+                  const totalIn = displayEntries
+                    .filter(e => e.type === 'IN' || summary.in_entries.some((x: any) => x.id === e.id))
+                    .reduce((sum, e) => sum + (e.amount || 0), 0);
+                  const totalOut = displayEntries
+                    .filter(e => e.type === 'OUT' && !summary.in_entries.some((x: any) => x.id === e.id))
+                    .reduce((sum, e) => sum + (e.amount || 0), 0);
+                  const netVal = totalIn - totalOut;
+
+                  let totalsHeader = 'ALL ENTRIES';
+                  let netHeader = 'NET BALANCE / PAYOUT';
+
+                  if (activeTab === 'ALL') {
+                    totalsHeader = 'ALL ENTRIES';
+                    netHeader = 'NET BALANCE / PAYOUT';
+                  } else if (activeTab === 'IN') {
+                    totalsHeader = 'IN ENTRIES (RECEIVED)';
+                    netHeader = 'TOTAL IN RECEIVED';
+                  } else if (activeTab === 'OUT') {
+                    totalsHeader = 'OUT ENTRIES (PAID)';
+                    netHeader = 'TOTAL OUT PAID';
+                  } else if (activeTab.startsWith('PLATFORM:')) {
+                    const pName = activeTab.split('PLATFORM:')[1].toUpperCase();
+                    totalsHeader = pName;
+                    netHeader = `NET ${pName} PAYOUT`;
+                  }
+
+                  return (
+                    <tfoot className="bg-indigo-50/50 border-t-2 border-indigo-200">
+                      <tr>
+                        <td colSpan={4} className="py-4 px-4 text-right uppercase text-indigo-900 font-black text-xs tracking-wider">
+                          TOTALS FOR {totalsHeader}:
+                        </td>
+                        <td className="py-4 px-4 text-right text-emerald-700 font-bold font-mono text-sm">
+                          + ₹{totalIn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-4 px-4 text-right text-rose-700 font-bold font-mono text-sm">
+                          - ₹{totalOut.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-4 px-4"></td>
+                      </tr>
+                      <tr className="border-t border-indigo-100">
+                        <td colSpan={4} className="py-4 px-4 text-right uppercase text-slate-500 font-bold text-xs tracking-wider">
+                          {netHeader}:
+                        </td>
+                        <td colSpan={2} className={`py-4 px-4 text-right font-black font-mono text-base ${netVal >= 0 ? 'text-indigo-900' : 'text-rose-700'}`}>
+                          ₹{netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-4 px-4"></td>
+                      </tr>
+                    </tfoot>
+                  );
+                })()}
               </table>
             </div>
           </div>
