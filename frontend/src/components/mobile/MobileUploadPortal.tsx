@@ -416,6 +416,30 @@ export const MobileUploadPortal: React.FC = () => {
                       <span className="text-slate-500">Store Name:</span>
                       <span className="font-bold text-slate-900">{session.store_name}</span>
                     </div>
+                    {uploadSuccess.imported_months && uploadSuccess.imported_months.length > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Imported Month(s):</span>
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          {uploadSuccess.imported_months.map((m: string) => (
+                            <span key={m} className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {uploadSuccess.skipped_months && uploadSuccess.skipped_months.length > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Skipped (Existing):</span>
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          {uploadSuccess.skipped_months.map((m: string) => (
+                            <span key={m} className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-slate-500">Transactions Extracted:</span>
                       <span className="font-bold text-slate-900">{uploadSuccess.transaction_count}</span>

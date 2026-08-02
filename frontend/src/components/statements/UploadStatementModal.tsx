@@ -211,6 +211,63 @@ export const UploadStatementModal: React.FC<UploadStatementModalProps> = ({
                 </div>
               )}
 
+              {/* Multi-Month Breakdown Preview */}
+              {previewData.months_info && previewData.months_info.length > 0 && (
+                <div className="bg-indigo-50/70 border border-indigo-200 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                      Monthly Breakdown ({previewData.months_info.length} month{previewData.months_info.length > 1 ? 's' : ''} detected)
+                    </h4>
+                    <div className="flex gap-2 text-[11px] font-bold">
+                      <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        {previewData.new_months?.length || 0} New
+                      </span>
+                      {(previewData.skipped_months?.length || 0) > 0 && (
+                        <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                          {previewData.skipped_months?.length} Skipped (Already Uploaded)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {previewData.months_info.length > 1 && (
+                    <div className="max-h-40 overflow-y-auto border border-indigo-200/80 rounded-lg bg-white custom-scrollbar">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-indigo-100/50 text-indigo-900 font-bold border-b border-indigo-200 sticky top-0">
+                          <tr>
+                            <th className="py-2 px-3">Month</th>
+                            <th className="py-2 px-3">Date Range</th>
+                            <th className="py-2 px-3 text-center">Transactions</th>
+                            <th className="py-2 px-3 text-right">Credits (IN)</th>
+                            <th className="py-2 px-3 text-right">Debits (OUT)</th>
+                            <th className="py-2 px-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {previewData.months_info.map((m, idx) => (
+                            <tr key={idx} className={m.status === 'already_uploaded' ? 'bg-amber-50/50 text-slate-500' : 'hover:bg-slate-50'}>
+                              <td className="py-1.5 px-3 font-bold text-slate-900">{m.year_month}</td>
+                              <td className="py-1.5 px-3 font-mono text-[11px] text-slate-500">{m.start_date} to {m.end_date}</td>
+                              <td className="py-1.5 px-3 text-center font-mono">{m.transaction_count}</td>
+                              <td className="py-1.5 px-3 text-right font-mono text-emerald-700">₹{m.total_credits.toLocaleString('en-IN')}</td>
+                              <td className="py-1.5 px-3 text-right font-mono text-rose-700">₹{m.total_debits.toLocaleString('en-IN')}</td>
+                              <td className="py-1.5 px-3 text-center">
+                                {m.status === 'already_uploaded' ? (
+                                  <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-bold">Already Uploaded</span>
+                                ) : (
+                                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md font-bold">New</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div>
                   <span className="text-slate-500 block">Bank / Adapter</span>

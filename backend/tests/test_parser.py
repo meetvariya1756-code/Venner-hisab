@@ -1,6 +1,9 @@
 import sys
 import os
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -43,3 +46,24 @@ def test_meesho_categorization():
     assert cat_id == 1    # Meesho category
     assert status == "auto_matched"
     db.close()
+
+
+if __name__ == "__main__":
+    print("Running test_amount_cleaner...")
+    test_amount_cleaner()
+    print("PASS: test_amount_cleaner")
+
+    print("Running test_date_parser...")
+    test_date_parser()
+    print("PASS: test_date_parser")
+
+    print("Running test_column_detector...")
+    test_column_detector()
+    print("PASS: test_column_detector")
+
+    print("Running test_meesho_categorization...")
+    test_meesho_categorization()
+    print("PASS: test_meesho_categorization")
+
+    print("\nALL PARSER TESTS PASSED!")
+

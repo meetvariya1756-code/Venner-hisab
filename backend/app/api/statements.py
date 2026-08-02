@@ -26,7 +26,7 @@ async def parse_statement_preview(
     file_bytes = await file.read()
     file_hash = StatementService.calculate_file_hash(file_bytes)
 
-    # Save temp file for pdfplumber
+    # Save temp file for parsing
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
@@ -57,16 +57,18 @@ async def parse_statement_preview(
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
 
-    # Duplicate check
-    year_month = parsing_result.year_month or "Unknown"
-    is_dup, dup_msg = StatementService.check_duplicate(account_id, file_hash, year_month, db)
+    # Calculate monthly breakdown and check duplicate status for each month
+    breakdown = StatementService.get_monthly_breakdown_status(account_id, parsing_result, db)
 
     return {
         "filename": file.filename,
         "file_hash": file_hash,
-        "is_duplicate": is_dup,
-        "duplicate_message": dup_msg,
+        "is_duplicate": breakdown["is_all_duplicate"],
+        "duplicate_message": breakdown["duplicate_message"],
         "account_id": account_id,
+        "months_info": breakdown["months_info"],
+        "new_months": breakdown["new_months"],
+        "skipped_months": breakdown["skipped_months"],
         "parsing_result": parsing_result.model_dump()
     }
 
@@ -81,6 +83,7 @@ async def confirm_statement_import(
 ):
     file_bytes = await file.read()
     acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+    store_name = acc.name if acc else "store"
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
@@ -104,23 +107,39 @@ async def confirm_statement_import(
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
 
-    # Check duplicate
-    is_dup, dup_msg = StatementService.check_duplicate(account_id, file_hash, parsing_result.year_month or "", db)
-    if is_dup:
-        raise HTTPException(status_code=409, detail=dup_msg)
+    # Check if all months are duplicates
+    breakdown = StatementService.get_monthly_breakdown_status(account_id, parsing_result, db)
+    if breakdown["is_all_duplicate"]:
+        raise HTTPException(status_code=409, detail="This month's PDF has already been uploaded.")
 
-    stmt = StatementService.import_parsed_statement(
+    import_result = StatementService.import_parsed_statement(
         account_id=account_id,
         filename=filename,
         file_hash=file_hash,
         parsing_result=parsing_result,
-        db=db
+        db=db,
+        original_file_bytes=file_bytes,
+        store_name=store_name
     )
 
-    return {
-        "message": "Statement imported successfully",
-        "statement_id": stmt.id,
-        "transaction_count": stmt.transaction_count,
-        "year_month": stmt.year_month
-    }
+    imported_stmts = import_result["imported_statements"]
+    skipped_m = import_result["skipped_months"]
 
+    if not imported_stmts:
+        raise HTTPException(status_code=409, detail="This month's PDF has already been uploaded.")
+
+    first_stmt = imported_stmts[0]
+    total_tx_count = sum(s.transaction_count for s in imported_stmts)
+
+    msg = f"Successfully imported {len(imported_stmts)} monthly statement(s)."
+    if skipped_m:
+        msg += f" Skipped existing month(s): {', '.join(skipped_m)}."
+
+    return {
+        "message": msg,
+        "statement_id": first_stmt.id,
+        "transaction_count": total_tx_count,
+        "year_month": first_stmt.year_month,
+        "imported_months": [s.year_month for s in imported_stmts],
+        "skipped_months": skipped_m
+    }

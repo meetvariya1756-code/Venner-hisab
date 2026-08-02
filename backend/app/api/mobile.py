@@ -208,41 +208,50 @@ async def upload_statement_from_mobile(
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
 
-    # Check duplicate
-    is_dup, dup_msg = StatementService.check_duplicate(account_id, file_hash, parsing_result.year_month or year_month, db)
-    if is_dup:
-        raise HTTPException(status_code=409, detail=dup_msg)
+    # Check duplicate status across parsed months
+    breakdown = StatementService.get_monthly_breakdown_status(account_id, parsing_result, db)
+    if breakdown["is_all_duplicate"]:
+        raise HTTPException(status_code=409, detail="This month's PDF has already been uploaded.")
 
-    # Save permanent PDF copy to disk
-    store_slug = acc.name.replace(" ", "_").lower()
-    save_filename = f"{store_slug}_{year_month}_{file_hash[:8]}.pdf"
-    save_path = os.path.join(UPLOAD_DIR, save_filename)
-    
-    with open(save_path, "wb") as f:
-        f.write(file_bytes)
+    uploader = uploader_name or acc.account_holder or "Store Account Holder"
 
-    # Import statement & transactions into DB
-    statement = StatementService.import_parsed_statement(
+    # Import statement & transactions into DB with monthly auto-splitting
+    import_result = StatementService.import_parsed_statement(
         account_id=account_id,
-        filename=file.filename or save_filename,
+        filename=file.filename or "statement.pdf",
         file_hash=file_hash,
         parsing_result=parsing_result,
-        db=db
+        db=db,
+        uploader_name=uploader,
+        uploaded_via_mobile=True,
+        original_file_bytes=file_bytes,
+        store_name=acc.name
     )
 
-    # Update mobile metadata & original file path
-    statement.uploaded_via_mobile = True
-    statement.original_file_path = save_path
-    statement.uploader_name = uploader_name or acc.account_holder or "Store Account Holder"
-    db.commit()
+    imported_stmts = import_result["imported_statements"]
+    skipped_m = import_result["skipped_months"]
+
+    if not imported_stmts:
+        raise HTTPException(status_code=409, detail="This month's PDF has already been uploaded.")
+
+    first_stmt = imported_stmts[0]
+    total_tx_count = sum(s.transaction_count for s in imported_stmts)
+    total_in = sum(s.total_credits for s in imported_stmts)
+    total_out = sum(s.total_debits for s in imported_stmts)
+
+    msg = f"Statement for {acc.name} ({', '.join([s.year_month for s in imported_stmts])}) successfully uploaded and parsed!"
+    if skipped_m:
+        msg += f" Existing month(s) skipped: {', '.join(skipped_m)}."
 
     return {
         "success": True,
-        "message": f"Statement for {acc.name} ({year_month}) successfully uploaded and parsed!",
-        "statement_id": statement.id,
-        "transaction_count": statement.transaction_count,
-        "total_in": statement.total_credits,
-        "total_out": statement.total_debits
+        "message": msg,
+        "statement_id": first_stmt.id,
+        "transaction_count": total_tx_count,
+        "total_in": total_in,
+        "total_out": total_out,
+        "imported_months": [s.year_month for s in imported_stmts],
+        "skipped_months": skipped_m
     }
 
 @router.get("/checklist", response_model=List[AccountChecklistOut])

@@ -47,9 +47,12 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
       const data = await api.getPlatforms();
       const list = Array.isArray(data) ? data : [];
       setPlatforms(list);
-      if (list.length > 0 && !selectedPlatformId) {
-        setSelectedPlatformId(list[0].id);
+      const targetPlatId = selectedPlatformId || (list.length > 0 ? list[0].id : 1);
+      if (list.length > 0 && (!selectedPlatformId || selectedPlatformId !== targetPlatId)) {
+        setSelectedPlatformId(targetPlatId);
       }
+      // Ensure accounts are loaded for target platform
+      await loadAccounts(targetPlatId);
     } catch (e) {
       console.error(e);
       setPlatforms([]);

@@ -136,6 +136,18 @@ export interface ParsePreviewResult {
   is_duplicate: boolean;
   duplicate_message: string;
   account_id: number;
+  months_info?: {
+    year_month: string;
+    start_date: string;
+    end_date: string;
+    transaction_count: number;
+    total_credits: number;
+    total_debits: number;
+    status: 'new' | 'already_uploaded';
+    existing_filename?: string | null;
+  }[];
+  new_months?: string[];
+  skipped_months?: string[];
   parsing_result: {
     bank_name: string;
     opening_balance: number;
