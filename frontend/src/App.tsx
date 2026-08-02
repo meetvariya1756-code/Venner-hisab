@@ -6,33 +6,63 @@ import { AccountsView } from './components/accounts/AccountsView';
 import { TransactionsView } from './components/transactions/TransactionsView';
 import { PartiesView } from './components/parties/PartiesView';
 import { RulesView } from './components/rules/RulesView';
+import { KhatabookView } from './components/khatabook/KhatabookView';
 import { UploadStatementModal } from './components/statements/UploadStatementModal';
 import { MobileUploadPortal } from './components/mobile/MobileUploadPortal';
 import { MobileChecklistView } from './components/mobile/MobileChecklistView';
 import { Login } from './components/auth/Login';
-import type { BankAccount } from './types';
+import type { BankAccount, User } from './types';
 import { api } from './api/client';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<string>('platforms');
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = sessionStorage.getItem('user');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const storedUser = sessionStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed: User = JSON.parse(storedUser);
+        if (parsed.role === 'manager') {
+          return 'khatabook';
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return 'platforms';
+  });
+
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number>(0);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadAccountId, setUploadAccountId] = useState<number>(0);
   const [isMobilePortal, setIsMobilePortal] = useState<boolean>(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    () => sessionStorage.getItem('isAuthenticated') === 'true'
-  );
 
   useEffect(() => {
     // Check if user opened the mobile upload portal link
     const params = new URLSearchParams(window.location.search);
     if (params.get('portal') === 'mobile') {
       setIsMobilePortal(true);
-    } else {
+    } else if (user) {
       loadAccounts();
     }
-  }, []);
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.role === 'manager' && activeTab !== 'khatabook') {
+      setActiveTab('khatabook');
+    }
+  }, [user, activeTab]);
 
   const loadAccounts = async () => {
     try {
@@ -41,6 +71,24 @@ export function App() {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    sessionStorage.setItem('user', JSON.stringify(loggedInUser));
+    sessionStorage.setItem('isAuthenticated', 'true');
+
+    if (loggedInUser.role === 'manager') {
+      setActiveTab('khatabook');
+    } else {
+      setActiveTab('platforms');
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('isAuthenticated');
   };
 
   const handleSelectAccountForSummary = (accountId: number) => {
@@ -65,15 +113,8 @@ export function App() {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <Login 
-        onLogin={() => {
-          setIsAuthenticated(true);
-          sessionStorage.setItem('isAuthenticated', 'true');
-        }} 
-      />
-    );
+  if (!user) {
+    return <Login onLogin={handleLoginSuccess} />;
   }
 
   // Render standalone mobile portal for account holders
@@ -83,54 +124,71 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-indigo-600 selection:text-white">
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
+        onLogout={handleLogout}
+      />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto pb-12">
-        {activeTab === 'platforms' && (
-          <PlatformsView
-            onSelectAccount={handleSelectAccountForSummary}
-            onUploadClick={handleOpenUpload}
-          />
-        )}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {user.role === 'manager' ? (
+          <KhatabookView />
+        ) : (
+          <>
+            {activeTab === 'platforms' && (
+              <PlatformsView
+                onSelectAccount={handleSelectAccountForSummary}
+                onUploadClick={handleOpenUpload}
+              />
+            )}
 
-        {activeTab === 'summary' && (
-          <StatementSummaryView
-            initialAccountId={selectedAccountId}
-            onUploadClick={handleOpenUpload}
-          />
-        )}
+            {activeTab === 'summary' && (
+              <StatementSummaryView
+                initialAccountId={selectedAccountId}
+                onUploadClick={handleOpenUpload}
+              />
+            )}
 
-        {activeTab === 'mobile' && (
-          <MobileChecklistView />
-        )}
+            {activeTab === 'mobile' && (
+              <MobileChecklistView />
+            )}
 
-        {activeTab === 'accounts' && (
-          <AccountsView onUploadClick={handleOpenUpload} />
-        )}
+            {activeTab === 'accounts' && (
+              <AccountsView onUploadClick={handleOpenUpload} />
+            )}
 
-        {activeTab === 'transactions' && (
-          <TransactionsView />
-        )}
+            {activeTab === 'transactions' && (
+              <TransactionsView />
+            )}
 
-        {activeTab === 'parties' && (
-          <PartiesView />
-        )}
+            {activeTab === 'parties' && (
+              <PartiesView />
+            )}
 
-        {activeTab === 'rules' && (
-          <RulesView />
+            {activeTab === 'rules' && (
+              <RulesView />
+            )}
+
+            {activeTab === 'khatabook' && (
+              <KhatabookView />
+            )}
+          </>
         )}
       </main>
 
-      <UploadStatementModal
-        accounts={accounts}
-        initialAccountId={uploadAccountId}
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={() => {
-          loadAccounts();
-          setActiveTab('summary');
-        }}
-      />
+      {user.role === 'owner' && (
+        <UploadStatementModal
+          accounts={accounts}
+          initialAccountId={uploadAccountId}
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onSuccess={() => {
+            loadAccounts();
+            setActiveTab('summary');
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal, sync_database_schema
 from app.core.default_data import seed_default_data
-from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile
+from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile, auth, khatabook
 
 # Create database tables & sync schema for missing columns
 Base.metadata.create_all(bind=engine)
@@ -39,6 +39,8 @@ app.include_router(rules.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 app.include_router(mobile.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
+app.include_router(khatabook.router, prefix="/api")
 
 @app.get("/")
 def root():

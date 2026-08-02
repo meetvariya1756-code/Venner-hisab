@@ -6,6 +6,8 @@ from app.models.party import Party
 from app.models.rule import CategorizationRule
 from app.models.transaction import Transaction
 from app.models.audit import AuditLog
+from app.models.user import User
+from app.models.khatabook_entry import KhatabookEntry
 
 __all__ = [
     "Platform",
@@ -15,5 +17,7 @@ __all__ = [
     "Party",
     "CategorizationRule",
     "Transaction",
-    "AuditLog"
+    "AuditLog",
+    "User",
+    "KhatabookEntry"
 ]

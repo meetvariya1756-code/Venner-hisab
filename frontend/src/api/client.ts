@@ -1,4 +1,4 @@
-import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist } from '../types';
+import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry } from '../types';
 
 const API_BASE = '/api';
 
@@ -35,6 +35,73 @@ async function fetchApi(url: string, options?: RequestInit) {
 
 
 export const api = {
+  // Auth
+  async login(credentials: { username: string; password: string }): Promise<{ success: boolean; user: User }> {
+    const res = await fetchApi(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    });
+    return res.json();
+  },
+
+  async getUsers(): Promise<User[]> {
+    const res = await fetchApi(`${API_BASE}/auth/users`);
+    return res.json();
+  },
+
+  async createUser(data: { username: string; password: string; role: UserRole; full_name?: string }): Promise<User> {
+    const res = await fetchApi(`${API_BASE}/auth/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  // Khatabook
+  async getKhatabookSummary(): Promise<KhatabookSummary> {
+    const res = await fetchApi(`${API_BASE}/khatabook/summary`);
+    return res.json();
+  },
+
+  async getKhatabookAccounts(params?: { q?: string; filter_by?: string; sort_by?: string }): Promise<{ summary: KhatabookSummary; accounts: KhatabookAccount[] }> {
+    const query = new URLSearchParams();
+    if (params?.q) query.append('q', params.q);
+    if (params?.filter_by) query.append('filter_by', params.filter_by);
+    if (params?.sort_by) query.append('sort_by', params.sort_by);
+    const res = await fetchApi(`${API_BASE}/khatabook/accounts?${query.toString()}`);
+    return res.json();
+  },
+
+  async getKhatabookEntries(accountId: number): Promise<{ account: KhatabookAccount; entries: KhatabookEntry[] }> {
+    const res = await fetchApi(`${API_BASE}/khatabook/accounts/${accountId}/entries`);
+    return res.json();
+  },
+
+  async createKhatabookEntry(accountId: number, formData: FormData): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/khatabook/accounts/${accountId}/entries`, {
+      method: 'POST',
+      body: formData,
+    });
+    return res.json();
+  },
+
+  async updateKhatabookEntry(entryId: number, formData: FormData): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/khatabook/entries/${entryId}`, {
+      method: 'PUT',
+      body: formData,
+    });
+    return res.json();
+  },
+
+  async deleteKhatabookEntry(entryId: number): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/khatabook/entries/${entryId}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
   // Platforms
   async getPlatforms(): Promise<Platform[]> {
     const res = await fetchApi(`${API_BASE}/platforms`);

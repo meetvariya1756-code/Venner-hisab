@@ -202,3 +202,51 @@ export interface PartyExpense {
   total_expense: number;
   tx_count: number;
 }
+
+export type UserRole = 'owner' | 'manager';
+
+export interface User {
+  id: number;
+  username: string;
+  role: UserRole;
+  full_name?: string;
+}
+
+export interface KhatabookSummary {
+  total_give: number;
+  total_get: number;
+  accounts_count: number;
+}
+
+export interface KhatabookAccount {
+  id: number;
+  name: string;
+  account_holder?: string;
+  bank_name: string;
+  account_number: string;
+  phone_number?: string | null;
+  total_in: number;
+  total_out: number;
+  net_balance: number;
+  abs_net: number;
+  status: "YOU'LL GET" | "YOU'LL GIVE";
+  transaction_count: number;
+  last_activity_date: string;
+  first_activity_date: string;
+  created_at: string;
+}
+
+export interface KhatabookEntry {
+  id: number;
+  account_id: number;
+  entry_type: 'GAVE' | 'GOT';
+  amount: number;
+  description: string;
+  entry_date: string;
+  formatted_date_time?: string;
+  running_balance: number;
+  you_gave: number; // Debit
+  you_got: number;  // Credit
+  bill_image_url?: string | null;
+}
+

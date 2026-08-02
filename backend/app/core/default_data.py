@@ -118,3 +118,33 @@ def seed_default_data(db: Session):
                 is_active=True
             ))
         db.commit()
+
+    # Seed Default Users if empty
+    from app.models.user import User
+    if db.query(User).count() == 0:
+        # Main Owner user
+        owner_user = User(
+            username="Venner Enterprise",
+            password="Venner@Enterprise",
+            role="owner",
+            full_name="Venner Enterprise Owner"
+        )
+        # Alternate Owner user
+        owner_alt = User(
+            username="owner",
+            password="owner123",
+            role="owner",
+            full_name="System Owner"
+        )
+        # Manager user
+        manager_user = User(
+            username="manager",
+            password="manager123",
+            role="manager",
+            full_name="Khatabook Store Manager"
+        )
+        db.add(owner_user)
+        db.add(owner_alt)
+        db.add(manager_user)
+        db.commit()
+
