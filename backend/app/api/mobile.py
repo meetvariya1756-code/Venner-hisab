@@ -6,9 +6,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.account import BankAccount
 from app.models.statement import Statement
+from app.models.upi_screenshot import UPIScreenshot
 from app.schemas.schemas import MobileAuthRequest, MobileAuthOut, AccountChecklistOut
 from app.parsers.pdf_extractor import PasswordProtectedPDFException
 from app.parsers.generic_parser import StatementParserEngine
@@ -19,6 +21,9 @@ parser_engine = StatementParserEngine()
 
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "statements")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+SCREENSHOTS_DIR = os.path.join(settings.UPLOAD_DIR, "screenshots")
+os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 def normalize_text(s: Optional[str]) -> str:
     if not s:
@@ -309,3 +314,68 @@ def download_original_statement_pdf(statement_id: int, db: Session = Depends(get
         filename=stmt.filename,
         media_type="application/pdf"
     )
+
+@router.post("/screenshots/upload")
+async def upload_upi_screenshot(
+    account_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="BankAccount not found")
+    
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        raise HTTPException(status_code=400, detail="Invalid file format. Only PNG, JPG, JPEG, and WEBP are supported.")
+    
+    import uuid
+    unique_filename = f"upi_{uuid.uuid4().hex}{ext}"
+    save_path = os.path.join(SCREENSHOTS_DIR, unique_filename)
+    
+    file_bytes = await file.read()
+    with open(save_path, "wb") as f:
+        f.write(file_bytes)
+    
+    screenshot = UPIScreenshot(
+        account_id=account_id,
+        filename=unique_filename,
+        file_path=save_path,
+        uploaded_at=datetime.utcnow()
+    )
+    db.add(screenshot)
+    db.commit()
+    db.refresh(screenshot)
+    
+    return {
+        "success": True,
+        "id": screenshot.id,
+        "filename": screenshot.filename,
+        "upload_date": screenshot.uploaded_at.strftime("%Y-%m-%d"),
+        "upload_time": screenshot.uploaded_at.strftime("%I:%M %p"),
+    }
+
+@router.get("/screenshots/{account_id}")
+def get_mobile_screenshots(account_id: int, db: Session = Depends(get_db)):
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    screenshots = db.query(UPIScreenshot).filter(UPIScreenshot.account_id == account_id).order_by(UPIScreenshot.uploaded_at.desc()).all()
+    return [{
+        "id": s.id,
+        "filename": s.filename,
+        "upload_date": s.uploaded_at.strftime("%Y-%m-%d"),
+        "upload_time": s.uploaded_at.strftime("%I:%M %p"),
+        "image_url": f"/api/mobile/screenshots/file/{s.filename}"
+    } for s in screenshots]
+
+@router.get("/screenshots/file/{filename}")
+def get_screenshot_file(filename: str):
+    file_path = os.path.join(SCREENSHOTS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Screenshot file not found")
+    return FileResponse(file_path)

@@ -329,3 +329,50 @@ def get_bill_image(filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Bill image not found")
     return FileResponse(file_path)
+
+@router.get("/screenshots")
+def get_khatabook_screenshots(db: Session = Depends(get_db)):
+    from app.models.upi_screenshot import UPIScreenshot
+    accounts = db.query(BankAccount).all()
+    result = []
+    
+    for acc in accounts:
+        screenshots = db.query(UPIScreenshot).filter(UPIScreenshot.account_id == acc.id).order_by(UPIScreenshot.uploaded_at.desc()).all()
+        if len(screenshots) > 0:
+            result.append({
+                "account_id": acc.id,
+                "name": acc.name,
+                "account_holder": acc.account_holder or acc.name,
+                "screenshot_count": len(screenshots),
+                "last_upload_date": screenshots[0].uploaded_at.strftime("%Y-%m-%d"),
+                "last_upload_time": screenshots[0].uploaded_at.strftime("%I:%M %p"),
+                "screenshots": [{
+                    "id": s.id,
+                    "filename": s.filename,
+                    "upload_date": s.uploaded_at.strftime("%Y-%m-%d"),
+                    "upload_time": s.uploaded_at.strftime("%I:%M %p"),
+                    "image_url": f"/api/mobile/screenshots/file/{s.filename}"
+                } for s in screenshots]
+            })
+            
+    return result
+
+
+@router.delete("/screenshots/{screenshot_id}")
+def delete_khatabook_screenshot(screenshot_id: int, db: Session = Depends(get_db)):
+    from app.models.upi_screenshot import UPIScreenshot
+    screenshot = db.query(UPIScreenshot).filter(UPIScreenshot.id == screenshot_id).first()
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+
+    if screenshot.file_path and os.path.exists(screenshot.file_path):
+        try:
+            os.remove(screenshot.file_path)
+        except Exception as e:
+            print(f"Error removing file: {e}")
+
+    db.delete(screenshot)
+    db.commit()
+    return {"success": True, "deleted_id": screenshot_id}
+
+

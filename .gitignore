@@ -25,6 +25,7 @@ Thumbs.db
 # Uploaded Files
 uploads/
 backend/uploads/
+backend/data/
 
 # Local tool binaries
 cloudflared.exe

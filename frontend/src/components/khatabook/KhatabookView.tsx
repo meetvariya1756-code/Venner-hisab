@@ -15,7 +15,10 @@ import {
   Upload,
   Trash2,
   FileText,
-  Check
+  Check,
+  Camera,
+  Image,
+  Eye
 } from 'lucide-react';
 import { api } from '../../api/client';
 import type { KhatabookAccount, KhatabookEntry, KhatabookSummary } from '../../types';
@@ -49,6 +52,41 @@ export function KhatabookView() {
   const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formBillFile, setFormBillFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Screenshots State
+  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
+  const [screenshotsList, setScreenshotsList] = useState<any[]>([]);
+  const [loadingScreenshots, setLoadingScreenshots] = useState(false);
+  const [viewingScreenshotUrl, setViewingScreenshotUrl] = useState<string | null>(null);
+  const [expandedAccountId, setExpandedAccountId] = useState<number | null>(null);
+
+  const loadScreenshots = async () => {
+    setLoadingScreenshots(true);
+    try {
+      const data = await api.getKhatabookScreenshots();
+      setScreenshotsList(data);
+    } catch (e) {
+      console.error('Failed to load screenshots', e);
+    } finally {
+      setLoadingScreenshots(false);
+    }
+  };
+
+  const handleDeleteScreenshot = async (screenshotId: number) => {
+    if (!confirm("Are you sure you want to delete this screenshot? This will also remove it from the store holder's device.")) return;
+    try {
+      await api.deleteUPIScreenshot(screenshotId);
+      loadScreenshots();
+    } catch (e: any) {
+      alert(e.message || "Failed to delete screenshot");
+    }
+  };
+
+  useEffect(() => {
+    if (isLeftDrawerOpen) {
+      loadScreenshots();
+    }
+  }, [isLeftDrawerOpen]);
 
   useEffect(() => {
     loadAccounts();
@@ -285,13 +323,22 @@ export function KhatabookView() {
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">Manual Ledger Management</span>
-            <button
-              onClick={loadAccounts}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Refresh Ledger</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsLeftDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>UPI Screenshots</span>
+              </button>
+              <button
+                onClick={loadAccounts}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Ledger</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -699,6 +746,140 @@ export function KhatabookView() {
           )}
         </div>
       </div>
+
+      {/* Left Slide-Over Drawer (View UPI Screenshots) */}
+      {isLeftDrawerOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-start transition-opacity animate-in fade-in">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-200 relative border-r border-slate-200">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-emerald-600" /> UPI Screenshots History
+              </h3>
+              <button
+                onClick={() => setIsLeftDrawerOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {loadingScreenshots ? (
+                <div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center h-64">
+                  <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <span className="text-xs">Loading screenshots...</span>
+                </div>
+              ) : screenshotsList.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center h-64 space-y-2">
+                  <Image className="w-10 h-10 text-slate-300" />
+                  <h4 className="font-bold text-slate-700 text-xs">No screenshots found</h4>
+                  <p className="text-[11px] text-slate-400">Account holders have not uploaded any UPI screenshots yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {screenshotsList.map((item) => {
+                    const isExpanded = expandedAccountId === item.account_id;
+                    return (
+                      <div key={item.account_id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-all">
+                        {/* Account Accordion Header */}
+                        <div
+                          onClick={() => setExpandedAccountId(isExpanded ? null : item.account_id)}
+                          className="p-4 bg-white hover:bg-slate-50 flex items-center justify-between cursor-pointer border-b border-slate-100"
+                        >
+                          <div>
+                            <h4 className="font-black text-xs text-slate-900">{item.account_holder}</h4>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">{item.name}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black">
+                              {item.screenshot_count} Screenshots
+                            </span>
+                            <span className="text-slate-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                          </div>
+                        </div>
+
+                        {/* Screenshots List */}
+                        {isExpanded && (
+                          <div className="p-3 bg-slate-50/50 divide-y divide-slate-200/60 max-h-96 overflow-y-auto">
+                            {item.screenshots.map((s: any) => (
+                              <div key={s.id} className="py-2.5 flex items-center justify-between text-xs first:pt-0 last:pb-0">
+                                <div>
+                                  <div className="font-bold text-slate-800">{s.upload_date}</div>
+                                  <div className="text-[10px] text-slate-400 font-semibold">{s.upload_time}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => setViewingScreenshotUrl(s.image_url)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-extrabold rounded-lg border border-indigo-100 transition-all cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View Screen</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteScreenshot(s.id)}
+                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-100 transition-all cursor-pointer"
+                                    title="Delete Screenshot"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-400 font-medium">
+              Only owners can view payment verification screenshots.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox / Screenshot Image Modal View */}
+      {viewingScreenshotUrl && (
+        <div className="fixed inset-0 bg-black/75 z-55 flex items-center justify-center p-4 transition-opacity animate-in fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col relative animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button
+              onClick={() => setViewingScreenshotUrl(null)}
+              className="absolute top-4 right-4 p-2 bg-slate-900/60 hover:bg-slate-900/80 text-white rounded-full transition-all cursor-pointer z-50"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Scrollable image container */}
+            <div className="flex-1 overflow-auto bg-slate-950 flex items-center justify-center p-2 min-h-96">
+              <img
+                src={viewingScreenshotUrl}
+                alt="UPI Receipt Full Size"
+                className="max-w-full max-h-[70vh] object-contain shadow-md rounded-lg"
+              />
+            </div>
+
+            {/* Footer metadata */}
+            <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 text-xs">
+              <span className="font-extrabold text-slate-800">UPI Payment Receipt Screenshot</span>
+              <a
+                href={viewingScreenshotUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-600 hover:text-indigo-700 font-extrabold underline"
+              >
+                Open in New Tab
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

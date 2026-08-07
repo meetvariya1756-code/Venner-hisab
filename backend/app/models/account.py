@@ -23,6 +23,7 @@ class BankAccount(Base):
     platform = relationship("Platform", back_populates="accounts")
     statements = relationship("Statement", back_populates="account", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
+    upi_screenshots = relationship("UPIScreenshot", back_populates="account", cascade="all, delete-orphan")
 
     @property
     def masked_account_number(self) -> str:

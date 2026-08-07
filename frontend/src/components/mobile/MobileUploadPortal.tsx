@@ -3,7 +3,7 @@ import { api } from '../../api/client';
 import { 
   Smartphone, CheckCircle2, AlertCircle, FileText, KeyRound, ArrowRight, 
   Building2, User, Landmark, Phone, LogOut, Download, 
-  ShieldCheck
+  ShieldCheck, Camera, Image
 } from 'lucide-react';
 
 interface AuthSession {
@@ -29,8 +29,8 @@ export const MobileUploadPortal: React.FC = () => {
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // App Navigation State (two main tabs)
-  const [activeTab, setActiveTab] = useState<'details' | 'upload'>('upload');
+  // App Navigation State (three main tabs)
+  const [activeTab, setActiveTab] = useState<'details' | 'upload' | 'screenshots'>('upload');
 
   // Statement Upload Form State
   const [yearMonth, setYearMonth] = useState<string>('2026-02');
@@ -43,6 +43,14 @@ export const MobileUploadPortal: React.FC = () => {
   // Statement History State
   const [statements, setStatements] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+
+  // UPI Screenshots State
+  const [screenshots, setScreenshots] = useState<any[]>([]);
+  const [screenshotsLoading, setScreenshotsLoading] = useState<boolean>(false);
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotUploadLoading, setScreenshotUploadLoading] = useState<boolean>(false);
+  const [screenshotUploadError, setScreenshotUploadError] = useState<string | null>(null);
+  const [screenshotUploadSuccess, setScreenshotUploadSuccess] = useState<boolean>(false);
 
   useEffect(() => {
     // Restore session from localStorage if present
@@ -63,8 +71,9 @@ export const MobileUploadPortal: React.FC = () => {
   useEffect(() => {
     if (session) {
       loadStatementHistory(session.store_id);
+      loadScreenshots(session.store_id);
     }
-  }, [session, uploadSuccess]);
+  }, [session, uploadSuccess, screenshotUploadSuccess]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +118,53 @@ export const MobileUploadPortal: React.FC = () => {
       console.error(e);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const loadScreenshots = async (storeId: number) => {
+    setScreenshotsLoading(true);
+    try {
+      const list = await api.getMobileScreenshots(storeId);
+      setScreenshots(list);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setScreenshotsLoading(false);
+    }
+  };
+
+  const handleScreenshotFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setScreenshotFile(e.target.files[0]);
+      setScreenshotUploadError(null);
+      setScreenshotUploadSuccess(false);
+    }
+  };
+
+  const handleScreenshotUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!screenshotFile || !session) {
+      setScreenshotUploadError('Please select a valid screenshot image file.');
+      return;
+    }
+
+    setScreenshotUploadLoading(true);
+    setScreenshotUploadError(null);
+    setScreenshotUploadSuccess(false);
+
+    const formData = new FormData();
+    formData.append('account_id', session.store_id.toString());
+    formData.append('file', screenshotFile);
+
+    try {
+      await api.uploadUPIScreenshot(formData);
+      setScreenshotUploadSuccess(true);
+      setScreenshotFile(null);
+      loadScreenshots(session.store_id);
+    } catch (err: any) {
+      setScreenshotUploadError(err.message || 'Failed to upload screenshot.');
+    } finally {
+      setScreenshotUploadLoading(false);
     }
   };
 
@@ -549,6 +605,112 @@ export const MobileUploadPortal: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* TAB 3: UPI SCREENSHOTS UPLOAD */}
+          {activeTab === 'screenshots' && (
+            <div className="space-y-5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-indigo-600" /> UPI Screenshot Upload
+                </h2>
+                <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  {session.store_name}
+                </span>
+              </div>
+
+              <form onSubmit={handleScreenshotUploadSubmit} className="space-y-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                {screenshotUploadError && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 font-semibold">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <div>{screenshotUploadError}</div>
+                  </div>
+                )}
+
+                {screenshotUploadSuccess && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>Screenshot uploaded successfully!</div>
+                  </div>
+                )}
+
+                {/* Pick Screenshot File */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Choose UPI Payment Screenshot
+                  </label>
+                  <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 rounded-2xl p-6 text-center transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleScreenshotFileSelect}
+                      className="hidden"
+                      id="mobile-screenshot-upload"
+                      required
+                    />
+                    <label htmlFor="mobile-screenshot-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                      <Image className="w-10 h-10 text-indigo-600" />
+                      <span className="text-xs font-bold text-slate-900">
+                        {screenshotFile ? screenshotFile.name : 'Tap to select screenshot / take photo'}
+                      </span>
+                      <span className="text-[10px] text-slate-500">Pick from Photos, Gallery, or Camera</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={!screenshotFile || screenshotUploadLoading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white py-4 rounded-2xl font-extrabold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 cursor-pointer mt-2"
+                >
+                  {screenshotUploadLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Uploading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      Upload Screenshot <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Uploaded Screenshots History */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Your Uploaded Screenshots ({screenshots.length})
+                </h3>
+
+                {screenshotsLoading ? (
+                  <div className="text-center text-slate-400 text-xs py-6">Loading screenshots...</div>
+                ) : screenshots.length === 0 ? (
+                  <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300 text-center">
+                    <Image className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 font-medium">No screenshots uploaded yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 pb-8">
+                    {screenshots.map((s) => (
+                      <div key={s.id} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col text-xs space-y-1">
+                        <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 relative group border border-slate-200">
+                          <img
+                            src={s.image_url}
+                            alt="UPI Screenshot"
+                            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        </div>
+                        <div className="px-1 pt-1 space-y-0.5">
+                          <div className="text-[10px] font-black text-slate-800">{s.upload_date}</div>
+                          <div className="text-[9px] text-slate-400 font-semibold">{s.upload_time}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* BOTTOM NAVIGATION MENU BAR (Fixed at bottom of mobile view) */}
@@ -575,6 +737,18 @@ export const MobileUploadPortal: React.FC = () => {
           >
             <FileText className="w-5 h-5" />
             <span className="text-[10px]">PDF Upload</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('screenshots')}
+            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-2xl transition-all cursor-pointer ${
+              activeTab === 'screenshots'
+                ? 'text-indigo-600 font-extrabold bg-indigo-50'
+                : 'text-slate-500 font-medium hover:text-slate-900'
+            }`}
+          >
+            <Camera className="w-5 h-5" />
+            <span className="text-[10px]">UPI Screenshots</span>
           </button>
         </div>
 

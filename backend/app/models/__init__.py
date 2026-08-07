@@ -8,6 +8,7 @@ from app.models.transaction import Transaction
 from app.models.audit import AuditLog
 from app.models.user import User
 from app.models.khatabook_entry import KhatabookEntry
+from app.models.upi_screenshot import UPIScreenshot
 
 __all__ = [
     "Platform",
@@ -19,5 +20,6 @@ __all__ = [
     "Transaction",
     "AuditLog",
     "User",
-    "KhatabookEntry"
+    "KhatabookEntry",
+    "UPIScreenshot"
 ]

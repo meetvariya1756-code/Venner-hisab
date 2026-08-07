@@ -355,6 +355,36 @@ export const api = {
     return `${API_BASE}/mobile/download/${statementId}`;
   },
 
+  // Screenshots API
+  async uploadUPIScreenshot(formData: FormData): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/mobile/screenshots/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    return res.json();
+  },
+
+  async getMobileScreenshots(accountId: number): Promise<any[]> {
+    const res = await fetchApi(`${API_BASE}/mobile/screenshots/${accountId}`);
+    return res.json();
+  },
+
+  async getKhatabookScreenshots(): Promise<any[]> {
+    const res = await fetchApi(`${API_BASE}/khatabook/screenshots`);
+    return res.json();
+  },
+
+  async deleteUPIScreenshot(screenshotId: number): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/khatabook/screenshots/${screenshotId}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  getScreenshotUrl(filename: string): string {
+    return `${API_BASE}/mobile/screenshots/file/${filename}`;
+  },
+
   // Exports
   getExportUrl(format: 'xlsx' | 'csv', accountId?: number, categoryId?: number): string {
     const q = new URLSearchParams();
