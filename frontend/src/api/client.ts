@@ -1,6 +1,6 @@
 import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function fetchApi(url: string, options?: RequestInit) {
   const res = await fetch(url, options);
