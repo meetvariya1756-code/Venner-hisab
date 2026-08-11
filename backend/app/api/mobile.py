@@ -19,7 +19,7 @@ from app.services.statement_service import StatementService
 router = APIRouter(prefix="/mobile", tags=["Mobile App & Sync"])
 parser_engine = StatementParserEngine()
 
-UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "statements")
+UPLOAD_DIR = os.path.join(settings.UPLOAD_DIR, "statements")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 SCREENSHOTS_DIR = os.path.join(settings.UPLOAD_DIR, "screenshots")

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/export", tags=["Exports"])
 
 @router.get("/transactions")
 def export_transactions(
-    format: str = Query("xlsx", regex="^(xlsx|csv)$"),
+    format: str = Query("xlsx", pattern="^(xlsx|csv)$"),
     account_id: Optional[int] = None,
     category_id: Optional[int] = None,
     db: Session = Depends(get_db)

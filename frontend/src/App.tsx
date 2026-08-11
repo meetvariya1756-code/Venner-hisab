@@ -16,7 +16,7 @@ import { api } from './api/client';
 
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
-    const stored = sessionStorage.getItem('user');
+    const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (stored) {
       try {
         return JSON.parse(stored);
@@ -27,8 +27,10 @@ export function App() {
     return null;
   });
 
+  const [isValidatingSession, setIsValidatingSession] = useState<boolean>(true);
+
   const [activeTab, setActiveTab] = useState<string>(() => {
-    const storedUser = sessionStorage.getItem('user');
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (storedUser) {
       try {
         const parsed: User = JSON.parse(storedUser);
@@ -48,12 +50,54 @@ export function App() {
   const [uploadAccountId, setUploadAccountId] = useState<number>(0);
   const [isMobilePortal, setIsMobilePortal] = useState<boolean>(false);
 
+  // ── 1. Check mobile portal query param & Validate Session on Mount ──
   useEffect(() => {
-    // Check if user opened the mobile upload portal link
     const params = new URLSearchParams(window.location.search);
     if (params.get('portal') === 'mobile') {
       setIsMobilePortal(true);
-    } else if (user) {
+      setIsValidatingSession(false);
+      return;
+    }
+
+    const checkSession = async () => {
+      try {
+        const result = await api.validateSession();
+        if (result && result.valid && result.user) {
+          setUser(result.user);
+        } else {
+          setUser(null);
+        }
+      } catch {
+        setUser(null);
+      } finally {
+        setIsValidatingSession(false);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  // ── 2. Sync cross-tab login / logout events ─────────────────────────
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'session_token' || e.key === 'user') {
+        if (!e.newValue) {
+          setUser(null);
+        } else if (e.key === 'user' && e.newValue) {
+          try {
+            setUser(JSON.parse(e.newValue));
+          } catch {
+            // ignore
+          }
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
       loadAccounts();
     }
   }, [user]);
@@ -75,8 +119,8 @@ export function App() {
 
   const handleLoginSuccess = (loggedInUser: User) => {
     setUser(loggedInUser);
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
     sessionStorage.setItem('user', JSON.stringify(loggedInUser));
-    sessionStorage.setItem('isAuthenticated', 'true');
 
     if (loggedInUser.role === 'manager') {
       setActiveTab('khatabook');
@@ -85,11 +129,16 @@ export function App() {
     }
   };
 
-  const handleLogout = () => {
-    api.logout().catch(() => {});
-    setUser(null);
-    sessionStorage.removeItem('user');
-    sessionStorage.removeItem('isAuthenticated');
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // ignore network errors on logout
+    } finally {
+      setUser(null);
+      localStorage.clear();
+      sessionStorage.clear();
+    }
   };
 
   const handleSelectAccountForSummary = (accountId: number) => {
@@ -114,13 +163,21 @@ export function App() {
     }
   };
 
-  if (!user) {
-    return <Login onLogin={handleLoginSuccess} />;
-  }
-
-  // Render standalone mobile portal for account holders
   if (isMobilePortal) {
     return <MobileUploadPortal />;
+  }
+
+  if (isValidatingSession) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-600">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-sm font-medium">Validating session...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLoginSuccess} />;
   }
 
   return (

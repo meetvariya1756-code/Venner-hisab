@@ -1,41 +1,93 @@
-# Dependencies
-node_modules/
+# ════════════════════════════════════════════════════════════════
+# Venner-Hisab — Master .gitignore
+# ════════════════════════════════════════════════════════════════
+
+# ── 1. Environment & Secrets ───────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── 2. Python & Virtual Environments ───────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 venv/
 .venv/
-__pycache__/
-*.pyc
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Local Database & Logs
-*.db
-*.sqlite3
-*.log
-backend/accounting.db
-accounting.db
-
-# Build outputs
+# ── 3. Node & Frontend ─────────────────────────────────────────
+node_modules/
+frontend/node_modules/
 frontend/dist/
 frontend/build/
-.DS_Store
-Thumbs.db
+frontend/dev-dist/
+.vite/
+frontend/.vite/
+*.tsbuildinfo
 
-# IDE & Config
+# ── 4. Local Database & Storage ────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+backend/*.db
+backend/*.sqlite3
+
+# ── 5. User Uploads & Data ─────────────────────────────────────
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep
+backend/data/uploads/bills/*
+!backend/data/uploads/bills/.gitkeep
+backend/data/uploads/screenshots/*
+!backend/data/uploads/screenshots/.gitkeep
+backend/data/uploads/statements/*
+!backend/data/uploads/statements/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+uploads/
+
+# ── 6. Logs & Temp Files ───────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+scratch/
+*.tmp
+
+# ── 7. OS & IDE Configuration ──────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Uploaded Files
-uploads/
-backend/uploads/
-backend/data/
-
-# Local tool binaries
+# ── 8. Local Binaries & Tooling ────────────────────────────────
 cloudflared.exe
-
-# Local scratch directories
-scratch/
-
-# Additional dev builds
-dev-dist/
-frontend/dev-dist/
-
-# Leftover root package-lock
-package-lock.json

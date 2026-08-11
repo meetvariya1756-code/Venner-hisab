@@ -2,16 +2,34 @@ import type { Platform, BankAccount, Category, Party, CategorizationRule, Transa
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-// ── Session token helpers ─────────────────────────────────────
+// ── Session token & device helpers ───────────────────────────
 const SESSION_KEY = 'session_token';
+const DEVICE_KEY = 'device_id';
+
+export function getDeviceId(): string {
+  let devId = localStorage.getItem(DEVICE_KEY);
+  if (!devId) {
+    devId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : 'device_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem(DEVICE_KEY, devId);
+  }
+  return devId;
+}
 
 export function getSessionToken(): string | null {
-  return sessionStorage.getItem(SESSION_KEY);
+  return localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
 }
+
 export function setSessionToken(token: string): void {
+  localStorage.setItem(SESSION_KEY, token);
   sessionStorage.setItem(SESSION_KEY, token);
 }
+
 export function clearSessionToken(): void {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem('user');
+  localStorage.removeItem('isAuthenticated');
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem('user');
   sessionStorage.removeItem('isAuthenticated');
@@ -20,14 +38,29 @@ export function clearSessionToken(): void {
 // ── Core fetch wrapper ────────────────────────────────────────
 async function fetchApi(url: string, options?: RequestInit) {
   const token = getSessionToken();
-  const headers: Record<string, string> = {
-    ...(options?.headers as Record<string, string> || {}),
-  };
-  if (token) {
-    headers['X-Session-Token'] = token;
+  const deviceId = getDeviceId();
+  
+  let headersObj: Record<string, string> = {};
+  if (options?.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((val, key) => {
+        headersObj[key] = val;
+      });
+    } else if (Array.isArray(options.headers)) {
+      options.headers.forEach(([key, val]) => {
+        headersObj[key] = val;
+      });
+    } else {
+      headersObj = { ...(options.headers as Record<string, string>) };
+    }
   }
 
-  const res = await fetch(url, { ...options, headers });
+  if (token) {
+    headersObj['X-Session-Token'] = token;
+  }
+  headersObj['X-Device-ID'] = deviceId;
+
+  const res = await fetch(url, { ...options, headers: headersObj });
 
   if (!res.ok) {
     let errMessage = 'API Request Failed';
@@ -62,15 +95,18 @@ async function fetchApi(url: string, options?: RequestInit) {
 export const api = {
   // ── Auth ────────────────────────────────────────────────────
   async login(credentials: { username: string; password: string }): Promise<{ success: boolean; session_token: string; expires_at: string; user: User }> {
+    const deviceId = getDeviceId();
     const res = await fetchApi(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({ ...credentials, device_id: deviceId }),
     });
     const data = await res.json();
     // Store token immediately so subsequent requests are authenticated
     if (data.session_token) {
       setSessionToken(data.session_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      sessionStorage.setItem('user', JSON.stringify(data.user));
     }
     return data;
   },
@@ -86,7 +122,14 @@ export const api = {
   async validateSession(): Promise<{ valid: boolean; user: User; expires_at: string } | null> {
     try {
       const res = await fetchApi(`${API_BASE}/auth/validate`);
-      return res.json();
+      const data = await res.json();
+      if (data && data.valid && data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+        sessionStorage.setItem('user', JSON.stringify(data.user));
+        return data;
+      }
+      clearSessionToken();
+      return null;
     } catch {
       clearSessionToken();
       return null;

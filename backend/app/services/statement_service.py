@@ -3,6 +3,7 @@ import hashlib
 import json
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.models.statement import Statement
 from app.models.transaction import Transaction
 from app.models.audit import AuditLog
@@ -14,7 +15,7 @@ try:
 except ImportError:
     pypdf = None
 
-UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "statements")
+UPLOAD_DIR = os.path.join(settings.UPLOAD_DIR, "statements")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 

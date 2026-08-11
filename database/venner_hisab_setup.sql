@@ -1,10 +1,10 @@
 -- ════════════════════════════════════════════════════════════════
--- Venner-Hisab — Complete PostgreSQL Setup Script
--- Run this file in pgAdmin Query Tool or psql terminal.
+-- Venner-Hisab — Complete PostgreSQL Database Migration & Setup
+-- 
+-- Compatible with PostgreSQL 14, 15, 16+
 --
--- STEP 1: Run Section A (as the postgres superuser) to create
---         the database and user.
--- STEP 2: Connect to venner_hisab_dev, then run Sections B–G.
+-- STEP 1: Connect as superuser (postgres) and run SECTION A to create DB & user.
+-- STEP 2: Connect to `venner_hisab_dev` (or production DB) and run SECTIONS B–G.
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -13,20 +13,24 @@
 -- Run as: postgres superuser (postgres)
 -- ════════════════════════════════════════════════════════════════
 
--- Create the application user
-CREATE USER venner_user WITH PASSWORD 'venner_pass';
+-- Create the application user (change password before production)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'venner_user') THEN
+        CREATE USER venner_user WITH PASSWORD 'venner_pass';
+    END IF;
+END
+$$;
 
--- Create the development database owned by that user
-CREATE DATABASE venner_hisab_dev
-    WITH OWNER = venner_user
-    ENCODING = 'UTF8'
-    TEMPLATE = template0;
+-- Create the application database
+SELECT 'CREATE DATABASE venner_hisab_dev OWNER venner_user ENCODING ''UTF8'' TEMPLATE template0'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'venner_hisab_dev')\gexec
 
 -- Grant all privileges on the database
 GRANT ALL PRIVILEGES ON DATABASE venner_hisab_dev TO venner_user;
 
 -- ┌─────────────────────────────────────────────────────────────┐
--- │ Now connect to venner_hisab_dev and run sections B-G below  │
+-- │ Now connect to venner_hisab_dev and run SECTIONS B-G below │
 -- │  pgAdmin: right-click venner_hisab_dev → Query Tool         │
 -- │  psql   : \c venner_hisab_dev                               │
 -- └─────────────────────────────────────────────────────────────┘
@@ -34,7 +38,7 @@ GRANT ALL PRIVILEGES ON DATABASE venner_hisab_dev TO venner_user;
 
 -- ════════════════════════════════════════════════════════════════
 -- SECTION B — Application Tables
--- Matches all 12 SQLAlchemy models exactly.
+-- Defines all 12 core application tables with full integrity.
 -- ════════════════════════════════════════════════════════════════
 
 -- 1. Platforms
@@ -161,11 +165,12 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 10. User Sessions (server-side session management)
+-- 10. User Sessions (server-side session management with device fingerprinting)
 CREATE TABLE IF NOT EXISTS user_sessions (
     id           SERIAL PRIMARY KEY,
     user_id      INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token        VARCHAR(128) NOT NULL UNIQUE,
+    device_id    VARCHAR(128),
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     expires_at   TIMESTAMPTZ  NOT NULL,
     last_seen_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -198,14 +203,12 @@ CREATE TABLE IF NOT EXISTS upi_screenshots (
 
 
 -- ════════════════════════════════════════════════════════════════
--- SECTION C — Indexes
+-- SECTION C — Performance & Integrity Indexes
 -- ════════════════════════════════════════════════════════════════
 
--- Statement duplicate detection
-CREATE INDEX IF NOT EXISTS ix_statements_account_month
-    ON statements(account_id, year_month);
-CREATE INDEX IF NOT EXISTS ix_statements_file_hash
-    ON statements(file_hash);
+-- Statement lookups & duplicate detection
+CREATE INDEX IF NOT EXISTS ix_statements_account_month ON statements(account_id, year_month);
+CREATE INDEX IF NOT EXISTS ix_statements_file_hash ON statements(file_hash);
 
 -- Transaction lookups
 CREATE INDEX IF NOT EXISTS ix_transactions_account_id   ON transactions(account_id);
@@ -214,35 +217,31 @@ CREATE INDEX IF NOT EXISTS ix_transactions_category_id  ON transactions(category
 CREATE INDEX IF NOT EXISTS ix_transactions_party_id     ON transactions(party_id);
 CREATE INDEX IF NOT EXISTS ix_transactions_date         ON transactions(date);
 
--- Session management
-CREATE INDEX IF NOT EXISTS ix_user_sessions_token
-    ON user_sessions(token);
-CREATE INDEX IF NOT EXISTS ix_user_sessions_user_active
-    ON user_sessions(user_id, is_active);
-CREATE INDEX IF NOT EXISTS ix_user_sessions_expires
-    ON user_sessions(expires_at);
+-- Session management indexes
+CREATE INDEX IF NOT EXISTS ix_user_sessions_token ON user_sessions(token);
+CREATE INDEX IF NOT EXISTS ix_user_sessions_user_active ON user_sessions(user_id, is_active);
+CREATE INDEX IF NOT EXISTS ix_user_sessions_device ON user_sessions(user_id, device_id) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS ix_user_sessions_expires ON user_sessions(expires_at);
 
--- Khatabook
-CREATE INDEX IF NOT EXISTS ix_khatabook_entries_account
-    ON khatabook_entries(account_id);
-CREATE INDEX IF NOT EXISTS ix_khatabook_entries_date
-    ON khatabook_entries(entry_date);
+-- Khatabook lookups
+CREATE INDEX IF NOT EXISTS ix_khatabook_entries_account ON khatabook_entries(account_id);
+CREATE INDEX IF NOT EXISTS ix_khatabook_entries_date ON khatabook_entries(entry_date);
 
--- Active rules by priority
-CREATE INDEX IF NOT EXISTS ix_rules_active_priority
-    ON rules(priority ASC) WHERE is_active = TRUE;
+-- Categorization rules by priority
+CREATE INDEX IF NOT EXISTS ix_rules_active_priority ON rules(priority ASC) WHERE is_active = TRUE;
 
 
 -- ════════════════════════════════════════════════════════════════
--- SECTION D — Session Management Functions
+-- SECTION D — Session Management Stored Procedures
 -- ════════════════════════════════════════════════════════════════
 
--- D1. Create session on login
+-- D1. Create user session (deactivates previous active sessions for user)
 CREATE OR REPLACE FUNCTION create_user_session(
     p_user_id      INTEGER,
     p_token        VARCHAR(128),
-    p_ttl_seconds  INTEGER     DEFAULT 28800,
-    p_ip_address   VARCHAR(45) DEFAULT NULL,
+    p_device_id    VARCHAR(128) DEFAULT NULL,
+    p_ttl_seconds  INTEGER      DEFAULT 28800,  -- 8 hours
+    p_ip_address   VARCHAR(45)  DEFAULT NULL,
     p_user_agent   VARCHAR(512) DEFAULT NULL
 )
 RETURNS TABLE (
@@ -255,8 +254,14 @@ DECLARE
     v_expires_at TIMESTAMPTZ := NOW() + (p_ttl_seconds || ' seconds')::INTERVAL;
     v_id         INTEGER;
 BEGIN
-    INSERT INTO user_sessions (user_id, token, expires_at, ip_address, user_agent, is_active)
-    VALUES (p_user_id, p_token, v_expires_at, p_ip_address, p_user_agent, TRUE)
+    -- Deactivate any previous active session for this user
+    UPDATE user_sessions
+    SET is_active = FALSE
+    WHERE user_id = p_user_id AND is_active = TRUE;
+
+    -- Insert new session
+    INSERT INTO user_sessions (user_id, token, device_id, expires_at, ip_address, user_agent, is_active)
+    VALUES (p_user_id, p_token, COALESCE(p_device_id, 'default_device'), v_expires_at, p_ip_address, p_user_agent, TRUE)
     RETURNING id INTO v_id;
 
     RETURN QUERY SELECT v_id, p_token, v_expires_at;
@@ -265,6 +270,7 @@ $$;
 
 
 -- D2. Validate a session token
+DROP FUNCTION IF EXISTS validate_user_session(varchar);
 CREATE OR REPLACE FUNCTION validate_user_session(p_token VARCHAR(128))
 RETURNS TABLE (
     out_user_id    INTEGER,
@@ -277,29 +283,29 @@ RETURNS TABLE (
 LANGUAGE plpgsql AS $$
 BEGIN
     -- Touch last_seen_at for valid sessions
-    UPDATE user_sessions s
+    UPDATE user_sessions
     SET last_seen_at = NOW()
-    WHERE s.token = p_token AND s.is_active = TRUE AND s.expires_at > NOW();
+    WHERE token = p_token AND is_active = TRUE AND expires_at > NOW();
 
-    -- Return user info if valid (use table alias to avoid column ambiguity)
+    -- Return user info if valid
     RETURN QUERY
     SELECT
-        u.id::INTEGER            AS out_user_id,
-        u.username::VARCHAR(100) AS out_username,
-        u.role::VARCHAR(20)      AS out_role,
-        u.full_name::VARCHAR(150) AS out_full_name,
-        s.expires_at             AS out_expires_at,
-        TRUE::BOOLEAN            AS out_is_valid
+        u.id::INTEGER,
+        u.username::VARCHAR(100),
+        u.role::VARCHAR(20),
+        u.full_name::VARCHAR(150),
+        s.expires_at,
+        TRUE::BOOLEAN
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
-    WHERE s.token      = p_token
-      AND s.is_active  = TRUE
+    WHERE s.token     = p_token
+      AND s.is_active = TRUE
       AND s.expires_at > NOW();
 END;
 $$;
 
 
--- D3. Logout — invalidate a session
+-- D3. Logout — invalidate session
 CREATE OR REPLACE FUNCTION logout_user_session(p_token VARCHAR(128))
 RETURNS BOOLEAN
 LANGUAGE plpgsql AS $$
@@ -316,7 +322,7 @@ END;
 $$;
 
 
--- D4. Cleanup expired & inactive sessions
+-- D4. Cleanup expired sessions (> 24h old or inactive)
 CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -324,7 +330,7 @@ DECLARE
     deleted_count INTEGER;
 BEGIN
     DELETE FROM user_sessions
-    WHERE expires_at < NOW() OR is_active = FALSE;
+    WHERE expires_at < NOW() - INTERVAL '24 hours' OR is_active = FALSE;
 
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
@@ -332,7 +338,7 @@ END;
 $$;
 
 
--- D5. Force logout all sessions for a user (password change / compromise)
+-- D5. Force logout all sessions for a user
 CREATE OR REPLACE FUNCTION logout_all_user_sessions(p_user_id INTEGER)
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -350,7 +356,7 @@ $$;
 
 
 -- ════════════════════════════════════════════════════════════════
--- SECTION E — Default Seed Data
+-- SECTION E — Default Seed Data (Idempotent)
 -- ════════════════════════════════════════════════════════════════
 
 -- Platforms
@@ -397,7 +403,7 @@ FROM (VALUES
 JOIN parties p ON p.name = r.party_name
 ON CONFLICT DO NOTHING;
 
--- Default Users (CHANGE PASSWORDS BEFORE PRODUCTION)
+-- Default Users (Change passwords before going to production!)
 INSERT INTO users (username, password, role, full_name) VALUES
     ('Venner Enterprise', 'Venner@Enterprise', 'owner',   'Venner Enterprise Owner'),
     ('owner',             'owner123',          'owner',   'System Owner'),
@@ -406,7 +412,7 @@ ON CONFLICT (username) DO NOTHING;
 
 
 -- ════════════════════════════════════════════════════════════════
--- SECTION F — Permissions
+-- SECTION F — Role Permissions
 -- ════════════════════════════════════════════════════════════════
 
 GRANT ALL ON ALL TABLES    IN SCHEMA public TO venner_user;
@@ -417,43 +423,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO venner_user;
 
 
 -- ════════════════════════════════════════════════════════════════
--- SECTION G — Verification Queries
--- Run these after setup to confirm everything is correct.
+-- SECTION G — Quick Verification
 -- ════════════════════════════════════════════════════════════════
 
--- G1. All tables
 SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
-
--- G2. Seed data counts
-SELECT 'platforms'     AS tbl, COUNT(*) AS rows FROM platforms    UNION ALL
-SELECT 'categories',            COUNT(*) FROM categories           UNION ALL
-SELECT 'parties',               COUNT(*) FROM parties              UNION ALL
-SELECT 'rules',                 COUNT(*) FROM rules                UNION ALL
-SELECT 'users',                 COUNT(*) FROM users                UNION ALL
-SELECT 'user_sessions',         COUNT(*) FROM user_sessions;
-
--- G3. All indexes on user_sessions
-SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'user_sessions';
-
--- G4. Test session creation
-SELECT * FROM create_user_session(
-    (SELECT id FROM users WHERE username = 'Venner Enterprise'),
-    'test_token_abc123def456',
-    28800,
-    '127.0.0.1',
-    'pgAdmin Manual Test'
-);
-
--- G5. Validate the test session
-SELECT * FROM validate_user_session('test_token_abc123def456');
-
--- G6. View active sessions
-SELECT id, user_id, LEFT(token,16)||'...' AS token_preview,
-       created_at, expires_at, last_seen_at, ip_address, is_active
-FROM user_sessions ORDER BY created_at DESC;
-
--- G7. Logout test session
-SELECT logout_user_session('test_token_abc123def456');
-
--- G8. Cleanup (removes inactive + expired sessions)
-SELECT cleanup_expired_sessions() AS sessions_cleaned;
