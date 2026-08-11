@@ -1,39 +1,30 @@
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
-# SQLite configuration for local dev
-db_url = settings.DATABASE_URL
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
-connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
-
+# ── Engine ────────────────────────────────────────────────────
 engine = create_engine(
-    db_url,
-    connect_args=connect_args
+    settings.DATABASE_URL,
+    # SQLite needs check_same_thread=False; PostgreSQL needs nothing special here
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
+    # PostgreSQL connection pool settings (ignored for SQLite)
+    pool_pre_ping=True,          # auto-reconnect on stale connections
+    pool_size=5,                 # persistent connections
+    max_overflow=10,             # extra burst connections
+    echo=False                   # set True for SQL debug logging
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-def sync_database_schema():
-    """Ensure existing SQLite tables have all columns defined in SQLAlchemy models."""
-    inspector = inspect(engine)
-    with engine.begin() as conn:
-        for table_name, table in Base.metadata.tables.items():
-            if inspector.has_table(table_name):
-                existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
-                for column in table.columns:
-                    if column.name not in existing_cols:
-                        col_type = column.type.compile(engine.dialect)
-                        conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" {col_type}'))
 
 def get_db():
+    """FastAPI dependency — yields a SQLAlchemy session and closes it after use."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-

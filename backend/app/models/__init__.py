@@ -7,6 +7,7 @@ from app.models.rule import CategorizationRule
 from app.models.transaction import Transaction
 from app.models.audit import AuditLog
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.khatabook_entry import KhatabookEntry
 from app.models.upi_screenshot import UPIScreenshot
 
@@ -20,6 +21,7 @@ __all__ = [
     "Transaction",
     "AuditLog",
     "User",
+    "UserSession",
     "KhatabookEntry",
     "UPIScreenshot"
 ]

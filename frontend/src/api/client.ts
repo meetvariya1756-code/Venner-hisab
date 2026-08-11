@@ -2,8 +2,33 @@ import type { Platform, BankAccount, Category, Party, CategorizationRule, Transa
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+// ── Session token helpers ─────────────────────────────────────
+const SESSION_KEY = 'session_token';
+
+export function getSessionToken(): string | null {
+  return sessionStorage.getItem(SESSION_KEY);
+}
+export function setSessionToken(token: string): void {
+  sessionStorage.setItem(SESSION_KEY, token);
+}
+export function clearSessionToken(): void {
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem('user');
+  sessionStorage.removeItem('isAuthenticated');
+}
+
+// ── Core fetch wrapper ────────────────────────────────────────
 async function fetchApi(url: string, options?: RequestInit) {
-  const res = await fetch(url, options);
+  const token = getSessionToken();
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers['X-Session-Token'] = token;
+  }
+
+  const res = await fetch(url, { ...options, headers });
+
   if (!res.ok) {
     let errMessage = 'API Request Failed';
     try {
@@ -35,14 +60,37 @@ async function fetchApi(url: string, options?: RequestInit) {
 
 
 export const api = {
-  // Auth
-  async login(credentials: { username: string; password: string }): Promise<{ success: boolean; user: User }> {
+  // ── Auth ────────────────────────────────────────────────────
+  async login(credentials: { username: string; password: string }): Promise<{ success: boolean; session_token: string; expires_at: string; user: User }> {
     const res = await fetchApi(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
     });
-    return res.json();
+    const data = await res.json();
+    // Store token immediately so subsequent requests are authenticated
+    if (data.session_token) {
+      setSessionToken(data.session_token);
+    }
+    return data;
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await fetchApi(`${API_BASE}/auth/logout`, { method: 'POST' });
+    } finally {
+      clearSessionToken();
+    }
+  },
+
+  async validateSession(): Promise<{ valid: boolean; user: User; expires_at: string } | null> {
+    try {
+      const res = await fetchApi(`${API_BASE}/auth/validate`);
+      return res.json();
+    } catch {
+      clearSessionToken();
+      return null;
+    }
   },
 
   async getUsers(): Promise<User[]> {

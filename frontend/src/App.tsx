@@ -86,6 +86,7 @@ export function App() {
   };
 
   const handleLogout = () => {
+    api.logout().catch(() => {});
     setUser(null);
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('isAuthenticated');
