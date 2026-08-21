@@ -29,7 +29,10 @@ class Settings(BaseSettings):
 
     @property
     def origins_list(self) -> list[str]:
-        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+        if "*" in origins or self.ENVIRONMENT.lower() == "development":
+            return ["*"]
+        return origins
 
     @property
     def is_production(self) -> bool:

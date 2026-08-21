@@ -46,6 +46,15 @@ class ReportService:
             if t.debit > 0:
                 out_entries.append(item)
 
+        # Fetch statement to get opening and closing balances
+        stmt = db.query(Statement).filter(
+            Statement.account_id == account_id,
+            Statement.year_month == year_month
+        ).first()
+
+        opening_bal = round(stmt.opening_balance, 2) if stmt else 0.0
+        closing_bal = round(stmt.closing_balance, 2) if stmt else 0.0
+
         return {
             "account_id": account.id,
             "account_name": account.name,
@@ -62,6 +71,8 @@ class ReportService:
             "out_entries_count": len(out_entries),
             "in_entries": in_entries,
             "out_entries": out_entries,
+            "opening_balance": opening_bal,
+            "closing_balance": closing_bal,
         }
 
     @staticmethod
@@ -129,3 +140,94 @@ class ReportService:
             })
 
         return {"platforms": result}
+
+    @staticmethod
+    def get_owner_dashboard(db: Session) -> Dict[str, Any]:
+        # ── Fetch base data ───────────────────────────────────────
+        all_accounts = db.query(BankAccount).all()
+        all_txs = db.query(Transaction).all()
+        statements_count = db.query(Statement).count()
+
+        # ── Overall totals ────────────────────────────────────────
+        total_credit = round(sum(t.credit for t in all_txs), 2)
+        total_debit  = round(sum(t.debit  for t in all_txs), 2)
+        net_balance  = round(total_credit - total_debit, 2)
+
+        # ── Account-wise summary ──────────────────────────────────
+        acc_summary = []
+        for acc in all_accounts:
+            acc_txs = [t for t in all_txs if t.account_id == acc.id]
+            cr = round(sum(t.credit for t in acc_txs), 2)
+            dr = round(sum(t.debit  for t in acc_txs), 2)
+            platform_name = acc.platform.name if acc.platform else "Direct Party"
+            acc_summary.append({
+                "id": acc.id,
+                "name": acc.name,
+                "account_holder": acc.account_holder or acc.name,
+                "bank_name": acc.bank_name,
+                "platform_name": platform_name,
+                "total_credit": cr,
+                "total_debit": dr,
+                "net": round(cr - dr, 2),
+                "transaction_count": len(acc_txs),
+            })
+
+        # ── Monthly trend ─────────────────────────────────────────
+        monthly: Dict[str, Dict] = {}
+        for t in all_txs:
+            ym = t.date[:7] if t.date and len(t.date) >= 7 else "Unknown"
+            if ym not in monthly:
+                monthly[ym] = {"credit": 0.0, "debit": 0.0}
+            monthly[ym]["credit"] += t.credit
+            monthly[ym]["debit"]  += t.debit
+
+        monthly_trend = [
+            {
+                "month": ym,
+                "credit": round(monthly[ym]["credit"], 2),
+                "debit":  round(monthly[ym]["debit"],  2),
+                "net":    round(monthly[ym]["credit"] - monthly[ym]["debit"], 2),
+            }
+            for ym in sorted(monthly.keys())
+        ]
+
+        # ── Yearly summary ────────────────────────────────────────
+        yearly: Dict[str, Dict] = {}
+        for t in all_txs:
+            yr = t.date[:4] if t.date and len(t.date) >= 4 else "Unknown"
+            if yr not in yearly:
+                yearly[yr] = {"credit": 0.0, "debit": 0.0, "tx_count": 0}
+            yearly[yr]["credit"]   += t.credit
+            yearly[yr]["debit"]    += t.debit
+            yearly[yr]["tx_count"] += 1
+
+        yearly_summary = [
+            {
+                "year":     yr,
+                "credit":   round(yearly[yr]["credit"],  2),
+                "debit":    round(yearly[yr]["debit"],   2),
+                "net":      round(yearly[yr]["credit"] - yearly[yr]["debit"], 2),
+                "tx_count": yearly[yr]["tx_count"],
+            }
+            for yr in sorted(yearly.keys())
+        ]
+
+        # ── Top performers ────────────────────────────────────────
+        top_credit = sorted(acc_summary, key=lambda x: x["total_credit"], reverse=True)[:5]
+        top_debit  = sorted(acc_summary, key=lambda x: x["total_debit"],  reverse=True)[:5]
+
+        return {
+            "overview": {
+                "total_credit": total_credit,
+                "total_debit": total_debit,
+                "net_balance": net_balance,
+                "accounts_count": len(all_accounts),
+                "statements_count": statements_count,
+                "transactions_count": len(all_txs),
+            },
+            "account_summary": acc_summary,
+            "monthly_trend": monthly_trend,
+            "yearly_summary": yearly_summary,
+            "top_credit_accounts": top_credit,
+            "top_debit_accounts": top_debit,
+        }

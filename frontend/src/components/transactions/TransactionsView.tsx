@@ -19,6 +19,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
   const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>(undefined);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(initialFilters?.category_id);
   const [uncategorizedOnly, setUncategorizedOnly] = useState<boolean>(initialFilters?.is_categorized === false);
+  const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'debit' | 'credit'>('all');
 
   // Rule Creation Modal State
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -88,37 +89,39 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
     e.preventDefault();
     if (!editingTx) return;
     try {
-      await api.updateTransaction(editingTx.id, {
+      const updatedTransaction = await api.updateTransaction(editingTx.id, {
         category_id: ruleCategoryId,
         party_id: rulePartyId || undefined,
         create_rule: true,
         pattern: rulePattern,
         rule_name: `Rule: ${rulePattern}`
       });
+      setTransactions((currentTransactions) => currentTransactions.map((transaction) => (
+        transaction.id === updatedTransaction.id ? updatedTransaction : transaction
+      )));
       setEditingTx(null);
-      loadTransactions();
     } catch (e) {
       console.error(e);
     }
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
             Transaction Ledger & Categorization Queue
           </h2>
           <p className="text-xs text-slate-500">Review, categorize, and export normalized transactions</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href={api.getExportUrl('xlsx', selectedAccountId, selectedCategoryId)}
             target="_blank"
             rel="noreferrer"
-            className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
           >
             <Download className="w-3.5 h-3.5" /> Export Excel (.xlsx)
           </a>
@@ -126,7 +129,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
             href={api.getExportUrl('csv', selectedAccountId, selectedCategoryId)}
             target="_blank"
             rel="noreferrer"
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border border-slate-200"
           >
             <Download className="w-3.5 h-3.5" /> Export CSV
           </a>
@@ -134,7 +137,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-card p-4 flex flex-wrap items-center gap-3">
+      <div className="glass-card p-4 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
           <input
@@ -149,7 +152,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
         <select
           value={selectedAccountId || ''}
           onChange={(e) => setSelectedAccountId(e.target.value ? Number(e.target.value) : undefined)}
-          className="glass-input bg-white"
+          className="glass-input bg-white w-full sm:w-auto"
         >
           <option value="">All Bank Accounts</option>
           {accounts.map((a) => (
@@ -160,13 +163,45 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
         <select
           value={selectedCategoryId || ''}
           onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-          className="glass-input bg-white"
+          className="glass-input bg-white w-full sm:w-auto"
         >
           <option value="">All Categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+
+        {/* Debit / Credit Type Filter */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          {([
+            { id: 'all',    label: 'All',    count: transactions.length },
+            { id: 'debit',  label: 'Debit',  count: transactions.filter(t => t.debit > 0).length },
+            { id: 'credit', label: 'Credit', count: transactions.filter(t => t.credit > 0).length },
+          ] as { id: 'all' | 'debit' | 'credit'; label: string; count: number }[]).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setTxTypeFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                txTypeFilter === tab.id
+                  ? tab.id === 'debit'
+                    ? 'bg-rose-500 text-white shadow-sm'
+                    : tab.id === 'credit'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {tab.label}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                txTypeFilter === tab.id
+                  ? 'bg-white/20 text-white'
+                  : 'bg-slate-200 text-slate-500'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
 
         <button
           onClick={() => setUncategorizedOnly(!uncategorizedOnly)}
@@ -182,11 +217,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
       </div>
 
       {/* Transactions Grid */}
+      {(() => {
+        const filteredTransactions = transactions.filter(tx => {
+          if (txTypeFilter === 'debit')  return tx.debit > 0;
+          if (txTypeFilter === 'credit') return tx.credit > 0;
+          return true;
+        });
+        return (
       <div className="glass-card overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-500">Loading transactions...</div>
-        ) : transactions.length === 0 ? (
-          <div className="p-12 text-center text-slate-500">No matching transactions found</div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            {txTypeFilter !== 'all'
+              ? `No ${txTypeFilter} transactions found.`
+              : 'No matching transactions found'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
@@ -203,7 +249,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-slate-50">
-                {transactions.map((tx) => (
+                {filteredTransactions.map((tx) => (
                   <tr key={tx.id} className="hover:bg-slate-100 transition-colors">
                     <td className="py-3 px-4 font-mono text-slate-500 whitespace-nowrap">{tx.date}</td>
                     <td className="py-3 px-4 max-w-sm">
@@ -263,6 +309,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({ initialFilte
           </div>
         )}
       </div>
+        );
+      })()}
 
       {/* Rule Creator Modal */}
       {editingTx && (

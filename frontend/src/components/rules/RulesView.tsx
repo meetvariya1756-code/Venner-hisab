@@ -68,7 +68,7 @@ export const RulesView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6">
       <div>
         <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
           Categorization Rules & Chart of Accounts

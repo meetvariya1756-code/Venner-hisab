@@ -7,6 +7,7 @@ import { TransactionsView } from './components/transactions/TransactionsView';
 import { PartiesView } from './components/parties/PartiesView';
 import { RulesView } from './components/rules/RulesView';
 import { KhatabookView } from './components/khatabook/KhatabookView';
+import { OwnerDashboard } from './components/dashboard/OwnerDashboard';
 import { UploadStatementModal } from './components/statements/UploadStatementModal';
 import { MobileUploadPortal } from './components/mobile/MobileUploadPortal';
 import { MobileChecklistView } from './components/mobile/MobileChecklistView';
@@ -189,11 +190,15 @@ export function App() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pb-8 sm:pb-12 min-w-0">
         {user.role === 'manager' ? (
           <KhatabookView />
         ) : (
           <>
+            {activeTab === 'owner-dashboard' && user.role === 'owner' && (
+              <OwnerDashboard />
+            )}
+
             {activeTab === 'platforms' && (
               <PlatformsView
                 onSelectAccount={handleSelectAccountForSummary}

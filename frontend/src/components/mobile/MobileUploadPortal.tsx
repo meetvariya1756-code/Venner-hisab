@@ -6,6 +6,17 @@ import {
   ShieldCheck, Camera, Image
 } from 'lucide-react';
 
+interface AuthAccountOption {
+  id: number;
+  name: string;
+  account_holder?: string | null;
+  bank_name: string;
+  platform_name: string;
+  account_number: string;
+  masked_account_number: string;
+  pdf_password?: string | null;
+}
+
 interface AuthSession {
   store_id: number;
   store_name: string;
@@ -19,6 +30,7 @@ interface AuthSession {
   platform_name: string;
   phone_number: string | null;
   pdf_password?: string | null;
+  all_accounts?: AuthAccountOption[];
 }
 
 export const MobileUploadPortal: React.FC = () => {
@@ -52,6 +64,14 @@ export const MobileUploadPortal: React.FC = () => {
   const [screenshotUploadError, setScreenshotUploadError] = useState<string | null>(null);
   const [screenshotUploadSuccess, setScreenshotUploadSuccess] = useState<boolean>(false);
 
+  // UPI Screenshot Form Fields
+  const [screenshotDescription, setScreenshotDescription] = useState<string>('');
+  const [screenshotEntryType, setScreenshotEntryType] = useState<'CREDIT' | 'DEBIT'>('CREDIT');
+  const [screenshotAmount, setScreenshotAmount] = useState<string>('');
+  const [screenshotTargetAccountId, setScreenshotTargetAccountId] = useState<string>('');
+  const [allAccounts, setAllAccounts] = useState<any[]>([]);
+  const [filterDate, setFilterDate] = useState<string>('');
+
   useEffect(() => {
     // Restore session from localStorage if present
     const saved = localStorage.getItem('hisab_mobile_session');
@@ -72,6 +92,7 @@ export const MobileUploadPortal: React.FC = () => {
     if (session) {
       loadStatementHistory(session.store_id);
       loadScreenshots(session.store_id);
+      loadAccounts();
     }
   }, [session, uploadSuccess, screenshotUploadSuccess]);
 
@@ -109,6 +130,33 @@ export const MobileUploadPortal: React.FC = () => {
     setFile(null);
   };
 
+  const handleSwitchAccount = (targetId: number) => {
+    if (!session || !session.all_accounts) return;
+    const targetOpt = session.all_accounts.find(a => a.id === targetId);
+    if (!targetOpt) return;
+
+    const newSession: AuthSession = {
+      ...session,
+      store_id: targetOpt.id,
+      store_name: targetOpt.name,
+      account_holder: targetOpt.account_holder || session.account_holder,
+      bank_name: targetOpt.bank_name,
+      account_number: targetOpt.account_number,
+      masked_account_number: targetOpt.masked_account_number,
+      platform_name: targetOpt.platform_name,
+      pdf_password: targetOpt.pdf_password
+    };
+    setSession(newSession);
+    localStorage.setItem('hisab_mobile_session', JSON.stringify(newSession));
+    if (targetOpt.pdf_password) {
+      setPassword(targetOpt.pdf_password);
+    } else {
+      setPassword('');
+    }
+    setUploadSuccess(null);
+    setUploadError(null);
+  };
+
   const loadStatementHistory = async (storeId: number) => {
     setHistoryLoading(true);
     try {
@@ -130,6 +178,15 @@ export const MobileUploadPortal: React.FC = () => {
       console.error(e);
     } finally {
       setScreenshotsLoading(false);
+    }
+  };
+
+  const loadAccounts = async () => {
+    try {
+      const list = await api.getMobileAccounts();
+      setAllAccounts(list || []);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -156,10 +213,27 @@ export const MobileUploadPortal: React.FC = () => {
     formData.append('account_id', session.store_id.toString());
     formData.append('file', screenshotFile);
 
+    if (screenshotTargetAccountId) {
+      formData.append('target_account_id', screenshotTargetAccountId);
+    }
+    if (screenshotAmount) {
+      formData.append('amount', screenshotAmount);
+    }
+    if (screenshotDescription) {
+      formData.append('description', screenshotDescription);
+    }
+    if (screenshotEntryType) {
+      formData.append('entry_type', screenshotEntryType);
+    }
+
     try {
       await api.uploadUPIScreenshot(formData);
       setScreenshotUploadSuccess(true);
       setScreenshotFile(null);
+      setScreenshotDescription('');
+      setScreenshotAmount('');
+      setScreenshotTargetAccountId('');
+      setScreenshotEntryType('CREDIT');
       loadScreenshots(session.store_id);
     } catch (err: any) {
       setScreenshotUploadError(err.message || 'Failed to upload screenshot.');
@@ -230,32 +304,34 @@ export const MobileUploadPortal: React.FC = () => {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-indigo-600" /> Store Account Name <span className="text-rose-500">*</span>
+              <label htmlFor="mobile-auth-store" className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 cursor-pointer">
+                <Building2 className="w-4 h-4 text-indigo-600 pointer-events-none" /> Store Account Name / Access Code <span className="text-rose-500">*</span>
               </label>
               <input
+                id="mobile-auth-store"
                 type="text"
-                placeholder="e.g. DAPPERDON, VIMS, VENNER NEW"
+                placeholder="Your Account Name - VIMS , VENNER NEW etc...."
                 value={inputStoreName}
                 onChange={(e) => setInputStoreName(e.target.value)}
                 className="w-full p-3.5 rounded-2xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all uppercase"
                 required
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">Enter your store name registered in the system</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">Enter your Store Name or unique Access Code</span>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-slate-500" /> Account Holder Name
+              <label htmlFor="mobile-auth-holder" className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5 cursor-pointer">
+                <User className="w-4 h-4 text-slate-500 pointer-events-none" /> Account Holder Name / Bank Name
               </label>
               <input
+                id="mobile-auth-holder"
                 type="text"
-                placeholder="e.g. Prajapati Gaurav Kiritbhai"
+                placeholder="e.g. Account Holder Name or Bank Name"
                 value={inputAccountHolder}
                 onChange={(e) => setInputAccountHolder(e.target.value)}
                 className="w-full p-3.5 rounded-2xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">Full name on the bank account (optional matching)</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">Optional details to refine account matching</span>
             </div>
 
             <button
@@ -293,7 +369,7 @@ export const MobileUploadPortal: React.FC = () => {
       <div className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col justify-between border-x border-slate-200">
         
         {/* Top App Header */}
-        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-4 sticky top-0 z-30 shadow-md">
+        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-4 sticky top-0 z-30 shadow-md space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
@@ -309,7 +385,7 @@ export const MobileUploadPortal: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-[11px] text-indigo-200 font-medium mt-0.5">
-                  {session.account_holder || 'Store Account Holder'}
+                  {session.bank_name} • {session.account_holder || 'Store Account Holder'}
                 </p>
               </div>
             </div>
@@ -323,6 +399,25 @@ export const MobileUploadPortal: React.FC = () => {
               <span className="text-[10px]">Logout</span>
             </button>
           </div>
+
+          {session.all_accounts && session.all_accounts.length > 1 && (
+            <div className="pt-1">
+              <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                Active Store / Bank Account
+              </label>
+              <select
+                value={session.store_id}
+                onChange={(e) => handleSwitchAccount(Number(e.target.value))}
+                className="w-full bg-white/10 text-white text-xs font-bold rounded-xl px-3 py-2 border border-white/20 focus:outline-none focus:bg-slate-800 focus:text-white"
+              >
+                {session.all_accounts.map((acc) => (
+                  <option key={acc.id} value={acc.id} className="bg-slate-900 text-white font-medium">
+                    {acc.name} ({acc.platform_name}) — {acc.bank_name} ({acc.masked_account_number})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Main Content Area */}
@@ -532,14 +627,15 @@ export const MobileUploadPortal: React.FC = () => {
 
                   {/* Period Month Picker */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="mobile-pdf-month" className="block text-xs font-bold text-slate-700 mb-1 cursor-pointer">
                       Select Statement Month
                     </label>
                     <input
+                      id="mobile-pdf-month"
                       type="month"
                       value={yearMonth}
                       onChange={(e) => setYearMonth(e.target.value)}
-                      className="w-full p-3.5 rounded-2xl border border-slate-300 bg-slate-50 font-bold text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                      className="w-full p-3.5 rounded-2xl border border-slate-300 bg-slate-50 font-bold text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white cursor-pointer"
                       required
                     />
                     <span className="text-[10px] text-slate-400 mt-1 block">
@@ -549,7 +645,7 @@ export const MobileUploadPortal: React.FC = () => {
 
                   {/* Pick PDF File */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="mobile-pdf-upload" className="block text-xs font-bold text-slate-700 mb-1 cursor-pointer">
                       Choose Statement PDF File
                     </label>
                     <div className="border-2 border-dashed border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 rounded-2xl p-6 text-center transition-all">
@@ -561,21 +657,22 @@ export const MobileUploadPortal: React.FC = () => {
                         id="mobile-pdf-upload"
                       />
                       <label htmlFor="mobile-pdf-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                        <FileText className="w-10 h-10 text-indigo-600" />
-                        <span className="text-xs font-extrabold text-slate-900">
+                        <FileText className="w-10 h-10 text-indigo-600 pointer-events-none" />
+                        <span className="text-xs font-extrabold text-slate-900 pointer-events-none">
                           {file ? file.name : 'Tap here to select PDF statement'}
                         </span>
-                        <span className="text-[10px] text-slate-500">Pick from WhatsApp or phone files</span>
+                        <span className="text-[10px] text-slate-500 pointer-events-none">Pick from WhatsApp or phone files</span>
                       </label>
                     </div>
                   </div>
 
                   {/* PDF Password Optional */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 flex items-center gap-1">
-                      <KeyRound className="w-3.5 h-3.5 text-slate-400" /> Statement PDF Password (if protected)
+                    <label htmlFor="mobile-pdf-pass" className="block text-[11px] font-semibold text-slate-500 mb-1 flex items-center gap-1 cursor-pointer">
+                      <KeyRound className="w-3.5 h-3.5 text-slate-400 pointer-events-none" /> Statement PDF Password (if protected)
                     </label>
                     <input
+                      id="mobile-pdf-pass"
                       type="password"
                       placeholder="Leave blank if not password protected"
                       value={password}
@@ -657,6 +754,102 @@ export const MobileUploadPortal: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Optional Settlement Entry */}
+                <div className="border-t border-slate-100 pt-4 mt-2 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">Record Settlement Entry (Optional)</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Link this payment to Khatabook</span>
+                  </div>
+
+                  {/* Target Account Dropdown */}
+                  <div>
+                    <label htmlFor="screenshot-target-acc" className="block text-[11px] font-bold text-slate-500 mb-1 cursor-pointer">
+                      Settle to Account
+                    </label>
+                    <select
+                      id="screenshot-target-acc"
+                      value={screenshotTargetAccountId}
+                      onChange={(e) => setScreenshotTargetAccountId(e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50/50 text-xs font-semibold text-slate-800 cursor-pointer"
+                    >
+                      <option value="">Select Target Account</option>
+                      {allAccounts
+                        .filter(acc => acc.id !== session.store_id)
+                        .map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.account_holder || acc.name} ({acc.bank_name})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Description Input */}
+                  <div>
+                    <label htmlFor="screenshot-desc" className="block text-[11px] font-bold text-slate-500 mb-1 cursor-pointer">
+                      Description / Narration
+                    </label>
+                    <input
+                      id="screenshot-desc"
+                      type="text"
+                      placeholder="e.g. Settle Meet to Rohit"
+                      value={screenshotDescription}
+                      onChange={(e) => setScreenshotDescription(e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50/50 text-xs font-semibold placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* Transaction Type Buttons */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">
+                      Transaction Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setScreenshotEntryType('CREDIT')}
+                        className={`py-3 rounded-2xl font-black text-xs border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          screenshotEntryType === 'CREDIT'
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/10'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-current pointer-events-none"></span>
+                        Credit (You Got)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScreenshotEntryType('DEBIT')}
+                        className={`py-3 rounded-2xl font-black text-xs border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          screenshotEntryType === 'DEBIT'
+                            ? 'bg-rose-600 border-rose-600 text-white shadow-md shadow-rose-600/10'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-current pointer-events-none"></span>
+                        Debit (You Gave)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amount Input */}
+                  <div>
+                    <label htmlFor="screenshot-amount" className="block text-[11px] font-bold text-slate-500 mb-1 cursor-pointer">
+                      Settlement Amount (₹)
+                    </label>
+                    <div className="relative cursor-text" onClick={() => document.getElementById('screenshot-amount')?.focus()}>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs pointer-events-none">₹</span>
+                      <input
+                        id="screenshot-amount"
+                        type="number"
+                        placeholder="0.00"
+                        value={screenshotAmount}
+                        onChange={(e) => setScreenshotAmount(e.target.value)}
+                        className="w-full pl-8 pr-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50/50 text-xs font-bold text-slate-800 placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Submit Button */}
                 <button
                   type="submit"
@@ -670,7 +863,7 @@ export const MobileUploadPortal: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      Upload Screenshot <ArrowRight className="w-4 h-4" />
+                      {screenshotTargetAccountId ? 'Upload Screenshot & Save Settlement' : 'Upload Screenshot'} <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -678,9 +871,31 @@ export const MobileUploadPortal: React.FC = () => {
 
               {/* Uploaded Screenshots History */}
               <div className="space-y-3">
-                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                  Your Uploaded Screenshots ({screenshots.length})
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                    Your Uploaded Screenshots ({screenshots.length})
+                  </h3>
+                  
+                  {/* Date Filter Input */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase">Date:</span>
+                    <input
+                      type="date"
+                      value={filterDate}
+                      onChange={(e) => setFilterDate(e.target.value)}
+                      className="p-1 px-2.5 rounded-xl border border-slate-200 text-[10px] font-bold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                    {filterDate && (
+                      <button
+                        type="button"
+                        onClick={() => setFilterDate('')}
+                        className="text-[9px] font-black text-rose-600 bg-rose-50 hover:bg-rose-100 p-1 px-2 rounded-lg border border-rose-100 transition-all cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 {screenshotsLoading ? (
                   <div className="text-center text-slate-400 text-xs py-6">Loading screenshots...</div>
@@ -690,23 +905,41 @@ export const MobileUploadPortal: React.FC = () => {
                     <p className="text-xs text-slate-500 font-medium">No screenshots uploaded yet.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 pb-8">
-                    {screenshots.map((s) => (
-                      <div key={s.id} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col text-xs space-y-1">
-                        <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 relative group border border-slate-200">
-                          <img
-                            src={s.image_url}
-                            alt="UPI Screenshot"
-                            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                          />
+                  (() => {
+                    const filtered = screenshots.filter(s => !filterDate || s.upload_date === filterDate);
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300 text-center">
+                          <Image className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs text-slate-500 font-medium">No screenshots found for {filterDate}.</p>
                         </div>
-                        <div className="px-1 pt-1 space-y-0.5">
-                          <div className="text-[10px] font-black text-slate-800">{s.upload_date}</div>
-                          <div className="text-[9px] text-slate-400 font-semibold">{s.upload_time}</div>
-                        </div>
+                      );
+                    }
+                    return (
+                      <div className="grid grid-cols-2 gap-3 pb-8">
+                        {filtered.map((s) => (
+                          <div key={s.id} className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-col text-xs space-y-1">
+                            <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 relative group border border-slate-200">
+                              <img
+                                src={s.image_url}
+                                alt="UPI Screenshot"
+                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                              />
+                            </div>
+                            <div className="px-1 pt-1 space-y-0.5">
+                              <div className="text-[10px] font-black text-slate-800">{s.upload_date}</div>
+                              <div className="text-[9px] text-slate-400 font-semibold">{s.upload_time}</div>
+                              {s.description && (
+                                <div className="text-[9px] font-semibold text-indigo-900 mt-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/60 truncate" title={s.description}>
+                                  {s.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()
                 )}
               </div>
             </div>

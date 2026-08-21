@@ -124,7 +124,7 @@ export const PlatformsView: React.FC<PlatformsViewProps> = ({ onSelectAccount, o
   const currentPlatform = platforms.find(p => p.id === selectedPlatformId);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6">
       {/* Platform Header & Navigation Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>

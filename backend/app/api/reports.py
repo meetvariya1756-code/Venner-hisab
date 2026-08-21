@@ -31,3 +31,8 @@ def get_account_summary(
     db: Session = Depends(get_db)
 ):
     return ReportService.get_account_monthly_summary(account_id, year_month, db)
+
+
+@router.get("/owner-dashboard")
+def get_owner_dashboard(db: Session = Depends(get_db)):
+    return ReportService.get_owner_dashboard(db)

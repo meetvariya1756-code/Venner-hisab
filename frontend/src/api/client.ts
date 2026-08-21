@@ -1,4 +1,4 @@
-import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry } from '../types';
+import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry, OwnerDashboard } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -406,6 +406,11 @@ export const api = {
     return res.json();
   },
 
+  async getOwnerDashboard(): Promise<OwnerDashboard> {
+    const res = await fetchApi(`${API_BASE}/reports/owner-dashboard`);
+    return res.json();
+  },
+
   // Mobile Sync & Checklist Methods
   async authenticateMobileStore(storeName: string, accountHolder?: string): Promise<any> {
     const res = await fetchApi(`${API_BASE}/mobile/auth`, {
@@ -431,6 +436,11 @@ export const api = {
 
   async getMobileChecklist(yearMonth: string): Promise<AccountChecklist[]> {
     const res = await fetchApi(`${API_BASE}/mobile/checklist?year_month=${yearMonth}`);
+    return res.json();
+  },
+
+  async getMobileAccounts(): Promise<any[]> {
+    const res = await fetchApi(`${API_BASE}/mobile/accounts`);
     return res.json();
   },
 

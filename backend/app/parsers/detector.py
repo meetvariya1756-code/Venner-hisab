@@ -27,11 +27,19 @@ def clean_amount(val: str) -> float:
 def parse_date_string(date_str: str) -> Optional[str]:
     if not date_str:
         return None
-    cleaned = date_str.strip()
+    # Remove internal linebreaks and collapse multiline date fragments (e.g. '2026-\n03-31' -> '2026-03-31')
+    cleaned = re.sub(r'[\r\n]+', '', str(date_str)).strip()
+    cleaned = re.sub(r'\s+', ' ', cleaned)
+    # Remove spaces around dashes or slashes in dates like '2026 - 03 - 31'
+    cleaned = re.sub(r'(\d{2,4})\s*[\-/]\s*(\d{1,2})\s*[\-/]\s*(\d{1,4})', r'\1-\2-\3', cleaned)
+    
+    # Strip time portion if present (e.g., '17/08/2026 14:22:00' or '17-08-2026 02:30 PM')
+    cleaned = re.sub(r'\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?', '', cleaned, flags=re.IGNORECASE).strip()
+    
     formats = [
-        "%d %b %Y", "%d %B %Y",
-        "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
-        "%Y-%m-%d", "%d-%b-%Y", "%d-%b-%y"
+        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y", "%d %B %Y",
+        "%d.%m.%Y", "%d-%b-%Y", "%d-%b-%y", "%d/%m/%y", "%d-%m-%y", "%d.%m.%y",
+        "%b %d, %Y", "%B %d, %Y"
     ]
     for fmt in formats:
         try:

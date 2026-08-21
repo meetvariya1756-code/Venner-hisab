@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 from app.core.database import SessionLocal, engine, Base
 from app.core.default_data import seed_default_data
 from app.api.auth import login, LoginRequest
@@ -15,21 +16,29 @@ class TestKhatabookAuth(unittest.TestCase):
     def tearDownClass(cls):
         cls.db.close()
 
+    def _do_login(self, username, password):
+        payload = LoginRequest(username=username, password=password)
+        req = MagicMock()
+        req.headers = {}
+        req.client = MagicMock()
+        req.client.host = "127.0.0.1"
+        res = login(payload, req, self.db)
+        if hasattr(res, "model_dump"):
+            return res.model_dump()
+        return res.dict()
+
     def test_owner_login(self):
-        payload = LoginRequest(username="owner", password="owner123")
-        res = login(payload, self.db)
+        res = self._do_login("owner", "owner123")
         self.assertTrue(res["success"])
         self.assertEqual(res["user"]["role"], "owner")
 
     def test_venner_owner_login(self):
-        payload = LoginRequest(username="Venner Enterprise", password="Venner@Enterprise")
-        res = login(payload, self.db)
+        res = self._do_login("Venner Enterprise", "Venner@Enterprise")
         self.assertTrue(res["success"])
         self.assertEqual(res["user"]["role"], "owner")
 
     def test_manager_login(self):
-        payload = LoginRequest(username="manager", password="manager123")
-        res = login(payload, self.db)
+        res = self._do_login("manager", "manager123")
         self.assertTrue(res["success"])
         self.assertEqual(res["user"]["role"], "manager")
 

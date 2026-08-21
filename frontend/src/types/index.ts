@@ -104,6 +104,8 @@ export interface StatementSummary {
   total_in: number;
   total_out: number;
   net: number;
+  opening_balance: number;
+  closing_balance: number;
   in_entries_count: number;
   out_entries_count: number;
   in_entries: {
@@ -250,3 +252,41 @@ export interface KhatabookEntry {
   bill_image_url?: string | null;
 }
 
+export interface AccountAnalytics {
+  id: number;
+  name: string;
+  account_holder: string;
+  bank_name: string;
+  platform_name: string;
+  total_credit: number;
+  total_debit: number;
+  net: number;
+  transaction_count: number;
+}
+
+export interface OwnerDashboard {
+  overview: {
+    total_credit: number;
+    total_debit: number;
+    net_balance: number;
+    accounts_count: number;
+    statements_count: number;
+    transactions_count: number;
+  };
+  account_summary: AccountAnalytics[];
+  monthly_trend: {
+    month: string;
+    credit: number;
+    debit: number;
+    net: number;
+  }[];
+  yearly_summary: {
+    year: string;
+    credit: number;
+    debit: number;
+    net: number;
+    tx_count: number;
+  }[];
+  top_credit_accounts: AccountAnalytics[];
+  top_debit_accounts: AccountAnalytics[];
+}

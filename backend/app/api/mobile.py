@@ -1,6 +1,7 @@
 import os
 import re
 import tempfile
+import uuid
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
@@ -11,7 +12,8 @@ from app.core.database import get_db
 from app.models.account import BankAccount
 from app.models.statement import Statement
 from app.models.upi_screenshot import UPIScreenshot
-from app.schemas.schemas import MobileAuthRequest, MobileAuthOut, AccountChecklistOut
+from app.models.khatabook_entry import KhatabookEntry
+from app.schemas.schemas import MobileAuthRequest, MobileAuthOut, AccountChecklistOut, MobileAccountOption
 from app.parsers.pdf_extractor import PasswordProtectedPDFException
 from app.parsers.generic_parser import StatementParserEngine
 from app.services.statement_service import StatementService
@@ -24,6 +26,9 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 SCREENSHOTS_DIR = os.path.join(settings.UPLOAD_DIR, "screenshots")
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+
+BILLS_DIR = os.path.join(settings.UPLOAD_DIR, "bills")
+os.makedirs(BILLS_DIR, exist_ok=True)
 
 def normalize_text(s: Optional[str]) -> str:
     if not s:
@@ -41,55 +46,74 @@ def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(
     norm_code = normalize_text(code_query)
 
     all_accs = db.query(BankAccount).all()
-    scored_matches = []
-
-    for a in all_accs:
-        a_name = normalize_text(a.name)
-        a_holder = normalize_text(a.account_holder)
-        a_code = normalize_text(a.access_code)
-        a_phone = normalize_text(a.phone_number)
-
-        score = 0
-
-        # Match store_query against store name, holder, code, phone
-        if norm_store:
-            if norm_store == a_name:
-                score += 60
-            elif a_name and (norm_store in a_name or a_name in norm_store):
-                score += 40
-            elif norm_store == a_holder:
-                score += 35
-            elif a_holder and (norm_store in a_holder or a_holder in norm_store):
-                score += 25
-            elif a_code and (norm_store == a_code or norm_store in a_code):
-                score += 35
-            elif a_phone and (norm_store == a_phone or norm_store in a_phone):
-                score += 30
-
-        # Match holder_query against account holder name or store name
-        if norm_holder:
-            if norm_holder == a_holder:
-                score += 50
-            elif a_holder and (norm_holder in a_holder or a_holder in norm_holder):
-                score += 35
-            elif norm_holder == a_name:
-                score += 30
-            elif a_name and (norm_holder in a_name or a_name in norm_holder):
-                score += 25
-
-        # Match code_query
-        if norm_code:
-            if a_code and (norm_code == a_code or norm_code in a_code):
-                score += 50
-
-        if score > 0:
-            scored_matches.append((score, a))
-
     acc = None
-    if scored_matches:
-        scored_matches.sort(key=lambda x: x[0], reverse=True)
-        acc = scored_matches[0][1]
 
+    # 1. Access Code or Account Number (last 4+ digits) Direct Match
+    search_key = norm_code or norm_store
+    if search_key:
+        for a in all_accs:
+            a_code = normalize_text(a.access_code)
+            a_num = normalize_text(a.account_number)
+            if a_code and a_code == search_key:
+                acc = a
+                break
+            if a_num and len(search_key) >= 4 and a_num.endswith(search_key):
+                acc = a
+                break
+
+    # 2. Exact Store Name or Store+Platform Name Match
+    if not acc and norm_store:
+        for a in all_accs:
+            a_name = normalize_text(a.name)
+            plat_name = normalize_text(a.platform.name if a.platform else "")
+            bank_name = normalize_text(a.bank_name)
+            combo_plat = normalize_text(f"{a.name}{plat_name}")
+            combo_bank = normalize_text(f"{a.name}{bank_name}")
+
+            if norm_store in [a_name, combo_plat, combo_bank]:
+                acc = a
+                break
+
+    # 3. Smart Scored Matching with Platform/Bank Keyword Detection
+    if not acc:
+        is_flipkart = any(k in norm_store for k in ["flipkart", "kotak", "9269"])
+        is_meesho = any(k in norm_store for k in ["meesho", "indusind", "1941"])
+
+        scored_matches = []
+        for a in all_accs:
+            a_name = normalize_text(a.name)
+            a_holder = normalize_text(a.account_holder)
+            plat_str = (a.platform.name if a.platform else "").lower()
+            bank_str = (a.bank_name or "").lower()
+
+            score = 0
+
+            # Prefer explicit platform / bank hints
+            if is_flipkart:
+                if "flipkart" in a_name or plat_str == "flipkart" or "kotak" in bank_str:
+                    score += 50
+            if is_meesho:
+                if plat_str == "meesho" or "indusind" in bank_str:
+                    score += 50
+
+            if norm_store:
+                if a_name and (norm_store in a_name or a_name in norm_store):
+                    score += 40
+
+            if norm_holder and a_holder:
+                if norm_holder == a_holder:
+                    score += 30
+                elif norm_holder in a_holder or a_holder in norm_holder:
+                    score += 15
+
+            if score > 0:
+                scored_matches.append((score, a))
+
+        if scored_matches:
+            scored_matches.sort(key=lambda x: x[0], reverse=True)
+            acc = scored_matches[0][1]
+
+    # 4. Fallback search by access code substring
     if not acc and (code_query or store_query):
         search_term = code_query or store_query
         acc = db.query(BankAccount).filter(BankAccount.access_code.ilike(f"%{search_term}%")).first()
@@ -97,8 +121,24 @@ def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(
     if not acc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Store Account '{store_query}' not found. Please check your Store Name and Account Holder Name."
+            detail=f"Store Account '{store_query}' not found. Please check your Store Name or Access Code."
         )
+
+    # Privacy Protection: Restrict matched_accs strictly to accounts belonging to THIS SAME matched store
+    matched_accs = [a for a in all_accs if normalize_text(a.name) == normalize_text(acc.name)]
+
+    all_account_options = [
+        MobileAccountOption(
+            id=a.id,
+            name=a.name,
+            account_holder=a.account_holder,
+            bank_name=a.bank_name,
+            platform_name=a.platform.name if a.platform else "General",
+            account_number=a.account_number,
+            masked_account_number=a.masked_account_number or a.account_number,
+            pdf_password=a.pdf_password
+        ) for a in matched_accs
+    ]
 
     return MobileAuthOut(
         store_id=acc.id,
@@ -106,13 +146,14 @@ def authenticate_mobile_store(payload: MobileAuthRequest, db: Session = Depends(
         account_holder=acc.account_holder,
         bank_name=acc.bank_name,
         account_number=acc.account_number,
-        masked_account_number=acc.masked_account_number,
+        masked_account_number=acc.masked_account_number or acc.account_number,
         account_type=acc.account_type,
         opening_balance=acc.opening_balance,
         currency=acc.currency,
         platform_name=acc.platform.name if acc.platform else "General",
         phone_number=acc.phone_number,
-        pdf_password=acc.pdf_password
+        pdf_password=acc.pdf_password,
+        all_accounts=all_account_options
     )
 
 @router.get("/statements/{account_id}")
@@ -181,6 +222,8 @@ async def upload_statement_from_mobile(
         raise HTTPException(status_code=404, detail="Store account not found")
 
     file_bytes = await file.read()
+    print(f"DEBUG MOBILE UPLOAD: Filename='{file.filename}', Size={len(file_bytes)} bytes, Account='{acc.name}' (ID {account_id}), password={repr(password)}")
+
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty PDF file uploaded")
 
@@ -191,6 +234,14 @@ async def upload_statement_from_mobile(
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
+    # Save a debug copy of uploaded file to inspect
+    debug_copy_path = os.path.join(UPLOAD_DIR, "last_mobile_upload_debug.pdf")
+    try:
+        with open(debug_copy_path, "wb") as f_dbg:
+            f_dbg.write(file_bytes)
+    except Exception as e:
+        print("Failed to save debug copy:", e)
+
     # Auto-inject password from DB or fallback for FABREECART
     if not password and acc:
         if acc.pdf_password:
@@ -200,18 +251,42 @@ async def upload_statement_from_mobile(
 
     try:
         parsing_result = parser_engine.parse_statement(tmp_path, password=password)
+        print(f"DEBUG MOBILE UPLOAD: Parsing result: bank='{parsing_result.bank_name}', tx_count={len(parsing_result.transactions)}")
     except PasswordProtectedPDFException as pe:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         error_msg = str(pe) if str(pe) else "Password-protected PDF. Please enter the password."
+        print(f"DEBUG MOBILE UPLOAD PasswordProtectedPDFException: {error_msg}")
         raise HTTPException(status_code=401, detail=error_msg)
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+        print(f"DEBUG MOBILE UPLOAD Exception: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=f"Failed to parse PDF statement: {str(e)}")
 
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
+
+    if not parsing_result.transactions:
+        print(f"DEBUG MOBILE UPLOAD: 0 transactions extracted! Checking text from pages...")
+        pages_data = check_and_extract_pdf_pages(debug_copy_path, password)
+        print(f"DEBUG MOBILE UPLOAD: Total pages extracted: {len(pages_data)}")
+        for pd in pages_data:
+            print(f"  Page {pd['page_number']}: text_len={len(pd.get('text',''))}, tables_len={len(pd.get('tables',[]))}")
+        raise HTTPException(
+            status_code=400,
+            detail="0 transactions extracted from this PDF statement. Please verify that you selected the correct Store Account and entered the PDF password if the PDF is protected."
+        )
+
+    # Fallback missing transaction dates or year_month from user mobile selection
+    for tx in parsing_result.transactions:
+        if not tx.date or len(tx.date) < 7:
+            tx.date = f"{year_month}-01"
+
+    if not parsing_result.year_month or parsing_result.year_month == "Unknown":
+        parsing_result.year_month = year_month
 
     # Check duplicate status across parsed months
     breakdown = StatementService.get_monthly_breakdown_status(account_id, parsing_result, db)
@@ -315,10 +390,24 @@ def download_original_statement_pdf(statement_id: int, db: Session = Depends(get
         media_type="application/pdf"
     )
 
+@router.get("/accounts")
+def get_mobile_active_accounts(db: Session = Depends(get_db)):
+    accounts = db.query(BankAccount).all()
+    return [{
+        "id": acc.id,
+        "name": acc.name,
+        "account_holder": acc.account_holder,
+        "bank_name": acc.bank_name
+    } for acc in accounts]
+
 @router.post("/screenshots/upload")
 async def upload_upi_screenshot(
     account_id: int = Form(...),
     file: UploadFile = File(...),
+    target_account_id: Optional[int] = Form(None),
+    amount: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    entry_type: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
@@ -332,7 +421,6 @@ async def upload_upi_screenshot(
     if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
         raise HTTPException(status_code=400, detail="Invalid file format. Only PNG, JPG, JPEG, and WEBP are supported.")
     
-    import uuid
     unique_filename = f"upi_{uuid.uuid4().hex}{ext}"
     save_path = os.path.join(SCREENSHOTS_DIR, unique_filename)
     
@@ -342,13 +430,38 @@ async def upload_upi_screenshot(
     
     screenshot = UPIScreenshot(
         account_id=account_id,
+        target_account_id=target_account_id,
         filename=unique_filename,
         file_path=save_path,
+        amount=amount,
+        entry_type=entry_type,
+        description=description,
         uploaded_at=datetime.utcnow()
     )
     db.add(screenshot)
     db.commit()
     db.refresh(screenshot)
+
+    # If target_account_id is provided, create a Khatabook entry on the target account
+    if target_account_id:
+        bill_unique_name = f"bill_{uuid.uuid4().hex}{ext}"
+        bill_save_path = os.path.join(BILLS_DIR, bill_unique_name)
+        with open(bill_save_path, "wb") as f_bill:
+            f_bill.write(file_bytes)
+        
+        mapped_entry_type = "GOT" if entry_type and entry_type.upper() in ["CREDIT", "GOT"] else "GAVE"
+        
+        new_entry = KhatabookEntry(
+            account_id=target_account_id,
+            entry_type=mapped_entry_type,
+            amount=amount if amount is not None else 0.0,
+            description=description or "",
+            entry_date=datetime.utcnow(),
+            bill_image_path=bill_save_path
+        )
+        db.add(new_entry)
+        db.commit()
+        db.refresh(new_entry)
     
     return {
         "success": True,
@@ -370,6 +483,7 @@ def get_mobile_screenshots(account_id: int, db: Session = Depends(get_db)):
         "filename": s.filename,
         "upload_date": s.uploaded_at.strftime("%Y-%m-%d"),
         "upload_time": s.uploaded_at.strftime("%I:%M %p"),
+        "description": s.description,
         "image_url": f"/api/mobile/screenshots/file/{s.filename}"
     } for s in screenshots]
 

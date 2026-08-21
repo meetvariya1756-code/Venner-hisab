@@ -9,6 +9,18 @@ from app.api import platforms, accounts, statements, transactions, categories, p
 # ── Create / migrate database tables ─────────────────────────
 Base.metadata.create_all(bind=engine)
 
+# Run simple migration to add columns to upi_screenshots if not exists
+from sqlalchemy import text
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS description VARCHAR(500)"))
+        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS target_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL"))
+        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION"))
+        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS entry_type VARCHAR(20)"))
+except Exception:
+    # Columns already exist or table issue
+    pass
+
 # ── Seed default data once on startup (idempotent) ────────────
 with SessionLocal() as db:
     seed_default_data(db)

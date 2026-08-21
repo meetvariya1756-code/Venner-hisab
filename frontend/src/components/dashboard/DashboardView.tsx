@@ -50,9 +50,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onDrillDown }) => 
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6">
       {/* Top Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-50 via-white to-purple-50 p-6 rounded-2xl border border-indigo-100 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-50 via-white to-purple-50 p-4 sm:p-6 rounded-2xl border border-indigo-100 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             Consolidated Financial Summary
@@ -132,7 +132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onDrillDown }) => 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Monthly Trend Area Chart */}
-        <div className="lg:col-span-2 glass-card p-6 bg-white flex flex-col justify-between">
+        <div className="lg:col-span-2 glass-card p-4 sm:p-6 bg-white flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Monthly Cash Flow Trend</h3>
@@ -168,7 +168,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onDrillDown }) => 
         </div>
 
         {/* Marketplace Platform Breakdown */}
-        <div className="glass-card p-6 bg-white flex flex-col justify-between">
+        <div className="glass-card p-4 sm:p-6 bg-white flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-indigo-600" />

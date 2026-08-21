@@ -1,0 +1,21 @@
+{
+  "name": "venner-hisab",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Multi-Account Statement Analyzer - Full Stack Application",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" --names \"BACKEND,FRONTEND\" --prefix \"[{name}]\" --kill-others-on-exit",
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && venv\\Scripts\\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "build": "cd frontend && npm run build",
+    "lint": "cd frontend && npm run lint",
+    "preview": "cd frontend && npm run preview"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

@@ -70,6 +70,9 @@ class StatementParserEngine:
         data_rows = all_raw_rows[header_idx + 1:]
         
         current_tx: Optional[Dict[str, Any]] = None
+        last_valid_date: Optional[str] = None
+        last_valid_year: Optional[str] = None
+        pending_year_prefix: Optional[str] = None
         
         for row in data_rows:
             # Strip page number appended at last position
@@ -79,21 +82,45 @@ class StatementParserEngine:
             if not any(cells):
                 continue
 
-            date_val = cells[col_mapping["date"]] if col_mapping.get("date") < len(cells) else ""
-            desc_val = cells[col_mapping["description"]] if col_mapping.get("description") < len(cells) else ""
+            date_val = cells[col_mapping["date"]] if col_mapping.get("date") is not None and col_mapping["date"] < len(cells) else ""
+            desc_val = cells[col_mapping["description"]] if col_mapping.get("description") is not None and col_mapping["description"] < len(cells) else ""
             ref_val = cells[col_mapping["ref_no"]] if "ref_no" in col_mapping and col_mapping["ref_no"] < len(cells) else ""
             debit_val = cells[col_mapping["debit"]] if "debit" in col_mapping and col_mapping["debit"] < len(cells) else ""
             credit_val = cells[col_mapping["credit"]] if "credit" in col_mapping and col_mapping["credit"] < len(cells) else ""
             balance_val = cells[col_mapping["balance"]] if "balance" in col_mapping and col_mapping["balance"] < len(cells) else ""
 
-            # Check if this row starts a new transaction (valid date present)
-            iso_date = parse_date_string(date_val)
+            clean_desc = re.sub(r'\s+', ' ', str(desc_val)).strip()
             
             # Skip header repeats or summary rows
-            if "opening balance" in desc_val.lower() or "closing balance" in desc_val.lower() or "description" in desc_val.lower():
+            if "opening balance" in clean_desc.lower() or "closing balance" in clean_desc.lower() or "particulars" in clean_desc.lower() or "date" in str(date_val).lower():
                 continue
 
+            clean_date = re.sub(r'[\r\n]+', '', str(date_val)).strip()
+            clean_date_compact = re.sub(r'\s+', '', clean_date)
+            
+            iso_date = parse_date_string(clean_date)
+
+            # Stitching: If previous page/row left a year prefix like '2026-'
+            if not iso_date and re.match(r'^\d{4}-?$', clean_date_compact):
+                pending_year_prefix = clean_date_compact[:4]
+            elif pending_year_prefix and re.match(r'^\d{2}-?\d{2}$', clean_date_compact):
+                stitched = f"{pending_year_prefix}-{clean_date_compact}"
+                iso_date = parse_date_string(stitched)
+                pending_year_prefix = None
+            elif not iso_date and re.match(r'^\d{2}-?\d{2}$', clean_date_compact) and last_valid_year:
+                iso_date = parse_date_string(f"{last_valid_year}-{clean_date_compact}")
+
+            dr_amt = clean_amount(debit_val)
+            cr_amt = clean_amount(credit_val)
+            bal_amt = clean_amount(balance_val)
+
+            # Fallback for partial date if amounts exist
+            if not iso_date and last_valid_date and (dr_amt > 0 or cr_amt > 0 or bal_amt > 0):
+                iso_date = last_valid_date
+
             if iso_date:
+                last_valid_date = iso_date
+                last_valid_year = iso_date[:4]
                 # Commit previous transaction if exists
                 if current_tx:
                     parsed_transactions.append(NormalizedTransaction(**current_tx))
@@ -101,17 +128,17 @@ class StatementParserEngine:
                 # Start new transaction
                 current_tx = {
                     "date": iso_date,
-                    "narration": desc_val,
+                    "narration": clean_desc,
                     "ref_no": ref_val if ref_val else None,
-                    "debit": clean_amount(debit_val),
-                    "credit": clean_amount(credit_val),
-                    "balance": clean_amount(balance_val),
+                    "debit": dr_amt,
+                    "credit": cr_amt,
+                    "balance": bal_amt,
                     "page_number": p_num
                 }
             else:
                 # Multiline continuation row for narration
-                if current_tx and desc_val:
-                    current_tx["narration"] += " " + desc_val
+                if current_tx and clean_desc:
+                    current_tx["narration"] += " " + clean_desc
                     if ref_val and not current_tx["ref_no"]:
                         current_tx["ref_no"] = ref_val
 
@@ -130,8 +157,18 @@ class StatementParserEngine:
         opening_bal = parsed_transactions[0].balance - (parsed_transactions[0].credit - parsed_transactions[0].debit) if parsed_transactions else 0.0
         closing_bal = parsed_transactions[-1].balance if parsed_transactions else 0.0
 
+        full_text_lower = " ".join([p.get("text", "") for p in pages_data]).lower() + str(all_raw_rows).lower()
+        if "indusind" in full_text_lower:
+            detected_bank = "IndusInd Bank"
+        elif "kotak" in full_text_lower:
+            detected_bank = "Kotak Mahindra Bank"
+        elif "sbi" in full_text_lower or "state bank" in full_text_lower:
+            detected_bank = "State Bank of India"
+        else:
+            detected_bank = "Generic Bank"
+
         return ParsingResult(
-            bank_name="Kotak Mahindra Bank" if "kotak" in str(all_raw_rows).lower() else "Generic Bank",
+            bank_name=detected_bank,
             opening_balance=opening_bal,
             closing_balance=closing_bal,
             start_date=start_date,

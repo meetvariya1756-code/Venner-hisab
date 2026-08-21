@@ -91,3 +91,10 @@ Thumbs.db
 
 # ── 8. Local Binaries & Tooling ────────────────────────────────
 cloudflared.exe
+
+# ── 9. Windows Local Startup Scripts ──────────────────────────
+START_ALL.bat
+START_ALL.ps1
+START_BACKEND.bat
+START_FRONTEND.bat
+

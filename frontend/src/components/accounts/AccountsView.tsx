@@ -114,7 +114,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onUploadClick }) => 
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6">
       <div className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Bank Accounts Registry</h2>

@@ -14,7 +14,6 @@ import {
   X,
   Upload,
   Trash2,
-  FileText,
   Check,
   Camera,
   Image,
@@ -31,6 +30,7 @@ export function KhatabookView() {
   });
   const [accounts, setAccounts] = useState<KhatabookAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [showAllStatement, setShowAllStatement] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<KhatabookAccount | null>(null);
   const [entries, setEntries] = useState<KhatabookEntry[]>([]);
 
@@ -59,6 +59,10 @@ export function KhatabookView() {
   const [loadingScreenshots, setLoadingScreenshots] = useState(false);
   const [viewingScreenshotUrl, setViewingScreenshotUrl] = useState<string | null>(null);
   const [expandedAccountId, setExpandedAccountId] = useState<number | null>(null);
+  const [screenshotGroupBy, setScreenshotGroupBy] = useState<'account' | 'month' | 'day'>('account');
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [expandedSubKey, setExpandedSubKey] = useState<string | null>(null);
 
   const loadScreenshots = async () => {
     setLoadingScreenshots(true);
@@ -70,6 +74,131 @@ export function KhatabookView() {
     } finally {
       setLoadingScreenshots(false);
     }
+  };
+
+  // Flatten all screenshots with account details
+  const getFlattenedScreenshots = () => {
+    const list: any[] = [];
+    screenshotsList.forEach(item => {
+      if (item.screenshots) {
+        item.screenshots.forEach((s: any) => {
+          list.push({
+            ...s,
+            account_id: item.account_id,
+            name: item.name,
+            account_holder: item.account_holder
+          });
+        });
+      }
+    });
+    return list;
+  };
+
+  const getMonthName = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length >= 2) {
+        const year = parts[0];
+        const monthNum = parseInt(parts[1], 10);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[monthNum - 1]} ${year}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getDayLabel = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parts[0];
+        const monthNum = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${day} ${months[monthNum - 1]} ${year}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Group by Month Helper
+  const getGroupedByMonth = () => {
+    const flattened = getFlattenedScreenshots();
+    const groups: { [month: string]: { [accountId: number]: { account_id: number, name: string, account_holder: string, screenshots: any[] } } } = {};
+
+    flattened.forEach(s => {
+      const monthLabel = getMonthName(s.upload_date);
+      if (!groups[monthLabel]) groups[monthLabel] = {};
+      if (!groups[monthLabel][s.account_id]) {
+        groups[monthLabel][s.account_id] = {
+          account_id: s.account_id,
+          name: s.name,
+          account_holder: s.account_holder,
+          screenshots: []
+        };
+      }
+      groups[monthLabel][s.account_id].screenshots.push(s);
+    });
+
+    // Sort months descending
+    return Object.keys(groups).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateB.getTime() - dateA.getTime();
+    }).map(month => {
+      const accounts = Object.values(groups[month]).map(acc => ({
+        ...acc,
+        screenshot_count: acc.screenshots.length
+      }));
+      const totalCount = accounts.reduce((sum, item) => sum + item.screenshot_count, 0);
+      return {
+        month,
+        totalCount,
+        accounts
+      };
+    });
+  };
+
+  // Group by Day Helper
+  const getGroupedByDay = () => {
+    const flattened = getFlattenedScreenshots();
+    const groups: { [day: string]: { [accountId: number]: { account_id: number, name: string, account_holder: string, screenshots: any[] } } } = {};
+
+    flattened.forEach(s => {
+      const dayLabel = getDayLabel(s.upload_date);
+      if (!groups[dayLabel]) groups[dayLabel] = {};
+      if (!groups[dayLabel][s.account_id]) {
+        groups[dayLabel][s.account_id] = {
+          account_id: s.account_id,
+          name: s.name,
+          account_holder: s.account_holder,
+          screenshots: []
+        };
+      }
+      groups[dayLabel][s.account_id].screenshots.push(s);
+    });
+
+    // Sort days descending
+    return Object.keys(groups).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateB.getTime() - dateA.getTime();
+    }).map(day => {
+      const accounts = Object.values(groups[day]).map(acc => ({
+        ...acc,
+        screenshot_count: acc.screenshots.length
+      }));
+      const totalCount = accounts.reduce((sum, item) => sum + item.screenshot_count, 0);
+      return {
+        day,
+        totalCount,
+        accounts
+      };
+    });
   };
 
   const handleDeleteScreenshot = async (screenshotId: number) => {
@@ -104,8 +233,8 @@ export function KhatabookView() {
       setAccounts(data.accounts);
 
       if (data.accounts.length > 0) {
-        if (!selectedAccountId || !data.accounts.some(a => a.id === selectedAccountId)) {
-          setSelectedAccountId(data.accounts[0].id);
+        if (selectedAccountId && !data.accounts.some(a => a.id === selectedAccountId)) {
+          setSelectedAccountId(null);
         }
       } else {
         setSelectedAccountId(null);
@@ -236,6 +365,15 @@ export function KhatabookView() {
     }
   };
 
+  const activeAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
+  const displayGive = activeAccount ? activeAccount.total_out : summary.total_give;
+  const displayGet = activeAccount ? activeAccount.total_in : summary.total_get;
+  const displayNet = activeAccount ? activeAccount.abs_net : Math.abs(summary.total_get - summary.total_give);
+  const isNetPositive = activeAccount ? activeAccount.status === "YOU'LL GET" : summary.total_get >= summary.total_give;
+  const displayStatus = activeAccount 
+    ? (activeAccount.status === "YOU'LL GET" ? 'Net Positive Balance' : 'Net Payable Balance')
+    : (summary.total_get >= summary.total_give ? 'Net Positive Balance' : 'Net Payable Balance');
+
   return (
     <div className="space-y-6 pt-4 relative">
       {/* Top Header & Summary Cards */}
@@ -256,7 +394,7 @@ export function KhatabookView() {
           </div>
           <div className="mt-3">
             <span className="text-3xl font-extrabold tracking-tight">
-              ₹{summary.total_give.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{displayGive.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <p className="text-xs text-rose-100 mt-2 flex items-center justify-between">
@@ -286,7 +424,7 @@ export function KhatabookView() {
           </div>
           <div className="mt-3">
             <span className="text-3xl font-extrabold tracking-tight">
-              ₹{summary.total_get.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{displayGet.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <p className="text-xs text-emerald-100 mt-2 flex items-center justify-between">
@@ -308,15 +446,15 @@ export function KhatabookView() {
                 Khatabook Ledger Status
               </span>
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-100">
-                {summary.accounts_count} Accounts
+                {selectedAccountId ? '1 Account Selected' : `${summary.accounts_count} Accounts`}
               </span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl font-extrabold text-slate-900">
-                ₹{Math.abs(summary.total_get - summary.total_give).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                ₹{displayNet.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
-              <span className={`text-xs font-bold ${summary.total_get >= summary.total_give ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {summary.total_get >= summary.total_give ? 'Net Positive Balance' : 'Net Payable Balance'}
+              <span className={`text-xs font-bold ${isNetPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {displayStatus}
               </span>
             </div>
           </div>
@@ -346,9 +484,44 @@ export function KhatabookView() {
       {/* Dual-Pane Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Master Pane: Search, Filter, Account List */}
-        <div className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[680px]">
+        <div className="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:h-[760px] h-[480px]">
           {/* Header Controls */}
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 space-y-3">
+            {/* All Account Statement Button */}
+            <button
+              onClick={() => {
+                setShowAllStatement(true);
+                setSelectedAccountId(null);
+                setSelectedAccount(null);
+                setEntries([]);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                showAllStatement && selectedAccountId === null
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200'
+                  : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black ${
+                  showAllStatement && selectedAccountId === null ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+                }`}>
+                  ALL
+                </div>
+                <span>All Account Statement</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <span className={`text-[10px] font-bold ${showAllStatement && selectedAccountId === null ? 'text-rose-200' : 'text-rose-500'}`}>Give</span>
+                  <span className={`text-[10px] font-black ${showAllStatement && selectedAccountId === null ? 'text-white' : 'text-slate-800'}`}>₹{summary.total_give.toLocaleString('en-IN')}</span>
+                </div>
+                <span className={showAllStatement && selectedAccountId === null ? 'text-white/30' : 'text-slate-300'}>|</span>
+                <div className="flex items-center gap-1">
+                  <span className={`text-[10px] font-bold ${showAllStatement && selectedAccountId === null ? 'text-emerald-200' : 'text-emerald-600'}`}>Get</span>
+                  <span className={`text-[10px] font-black ${showAllStatement && selectedAccountId === null ? 'text-white' : 'text-slate-800'}`}>₹{summary.total_get.toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </button>
+
             {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -411,14 +584,18 @@ export function KhatabookView() {
                 <span className="text-xs font-medium">No accounts found</span>
               </div>
             ) : (
-              accounts.map((account) => {
+              <>
+                {accounts.map((account) => {
                 const isSelected = account.id === selectedAccountId;
                 const isGive = account.status === "YOU'LL GIVE";
 
                 return (
                   <div
                     key={account.id}
-                    onClick={() => setSelectedAccountId(account.id)}
+                    onClick={() => {
+                      setSelectedAccountId(account.id);
+                      setShowAllStatement(false);
+                    }}
                     className={`p-3.5 transition-all cursor-pointer flex items-center justify-between hover:bg-slate-50 ${
                       isSelected ? 'bg-sky-50/80 border-l-4 border-sky-600 pl-2.5' : ''
                     }`}
@@ -454,13 +631,14 @@ export function KhatabookView() {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
           </div>
         </div>
 
         {/* Right Detail Pane: Account Ledger Entries & Actions */}
-        <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[680px] relative">
+        <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:h-[760px] min-h-[500px] relative">
           {selectedAccount ? (
             <>
               {/* Account Detail Header */}
@@ -547,15 +725,29 @@ export function KhatabookView() {
                             </div>
                           )}
                           {entry.bill_image_url && (
-                            <a
-                              href={entry.bill_image_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold pt-1"
-                            >
-                              <FileText className="w-3 h-3" /> View Attached Bill
-                            </a>
+                            <div className="pt-2 flex flex-col gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Receipt Screenshot:</span>
+                              <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-xs transition-shadow cursor-pointer relative group bg-slate-50">
+                                <img
+                                  src={entry.bill_image_url}
+                                  alt="Receipt Attachment"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingScreenshotUrl(entry.bill_image_url ?? null);
+                                  }}
+                                  className="w-full h-full object-cover transition-opacity hover:opacity-90"
+                                />
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingScreenshotUrl(entry.bill_image_url ?? null);
+                                  }}
+                                  className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
 
@@ -606,12 +798,121 @@ export function KhatabookView() {
                 </button>
               </div>
             </>
+          ) : showAllStatement ? (
+            /* ── All Account Statement Panel ─────────────────── */
+            <div className="p-6 overflow-y-auto h-full flex flex-col gap-5">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">All Account Statement</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Combined Give & Get totals across all accounts</p>
+                </div>
+                <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full">
+                  {accounts.length} Accounts
+                </span>
+              </div>
+
+              {/* Summary Give / Get Cards */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Total Give */}
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <ArrowDownRight className="w-4 h-4 text-rose-500" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-500">Total Give</span>
+                  </div>
+                  <span className="text-2xl font-extrabold text-rose-600 mt-1">
+                    ₹{summary.total_give.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-rose-400 font-medium">You owe to others</p>
+                </div>
+
+                {/* Total Get */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpRight className="w-4 h-4 text-emerald-500" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-500">Total Get</span>
+                  </div>
+                  <span className="text-2xl font-extrabold text-emerald-600 mt-1">
+                    ₹{summary.total_get.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <p className="text-[10px] text-emerald-400 font-medium">Others owe to you</p>
+                </div>
+              </div>
+
+              {/* Net Balance */}
+              <div className={`rounded-2xl p-4 border flex items-center justify-between ${
+                summary.total_get >= summary.total_give
+                  ? 'bg-emerald-50 border-emerald-200'
+                  : 'bg-rose-50 border-rose-200'
+              }`}>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Net Balance</p>
+                  <span className={`text-xl font-extrabold ${
+                    summary.total_get >= summary.total_give ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    ₹{Math.abs(summary.total_get - summary.total_give).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <span className={`text-xs font-black uppercase px-3 py-1.5 rounded-full ${
+                  summary.total_get >= summary.total_give
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-rose-600 text-white'
+                }`}>
+                  {summary.total_get >= summary.total_give ? "YOU'LL GET" : "YOU'LL GIVE"}
+                </span>
+              </div>
+
+              {/* Per-Account Breakdown */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs text-slate-600 uppercase tracking-wider">Account-wise Breakdown</h4>
+                {accounts.map(account => {
+                  const isGive = account.status === "YOU'LL GIVE";
+                  return (
+                    <div
+                      key={account.id}
+                      onClick={() => {
+                        setSelectedAccountId(account.id);
+                        setShowAllStatement(false);
+                      }}
+                      className="p-3.5 border border-slate-200 hover:border-indigo-400 rounded-2xl flex items-center justify-between bg-slate-50/50 hover:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs text-white ${
+                          isGive ? 'bg-rose-500' : 'bg-emerald-500'
+                        }`}>
+                          {account.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h5 className="font-black text-xs text-slate-800">{account.name}</h5>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-[10px] text-rose-500 font-semibold">Give: ₹{account.total_out.toLocaleString('en-IN')}</span>
+                            <span className="text-slate-300">|</span>
+                            <span className="text-[10px] text-emerald-600 font-semibold">Get: ₹{account.total_in.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-extrabold text-xs ${isGive ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          ₹{account.abs_net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                        <p className={`text-[9px] font-black uppercase mt-0.5 ${isGive ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          {account.status}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
-            <div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center h-full space-y-3">
-              <Building2 className="w-12 h-12 text-slate-300" />
+            /* ── Default: No account selected, no all statement ─ */
+            <div className="p-6 h-full flex flex-col items-center justify-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                <Building2 className="w-8 h-8 text-indigo-400" />
+              </div>
               <div>
-                <h4 className="font-bold text-slate-700 text-sm">Select an account</h4>
-                <p className="text-xs text-slate-400 mt-0.5">Click an account to view and manage entries</p>
+                <h3 className="font-extrabold text-sm text-slate-800">Select an Account</h3>
+                <p className="text-xs text-slate-500 mt-1">Click on any account on the left to view its ledger entries, or use the <span className="font-bold text-indigo-600">All Account Statement</span> button to see the combined totals.</p>
               </div>
             </div>
           )}
@@ -764,6 +1065,37 @@ export function KhatabookView() {
               </button>
             </div>
 
+            {/* Group By Filter */}
+            <div className="px-4 py-2 bg-slate-100/50 border-b border-slate-200 flex items-center justify-between text-xs font-bold">
+              <span className="text-slate-500">Group By:</span>
+              <div className="flex bg-slate-200/60 rounded-xl p-0.5 border border-slate-200/30">
+                <button
+                  onClick={() => setScreenshotGroupBy('account')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    screenshotGroupBy === 'account' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Account
+                </button>
+                <button
+                  onClick={() => setScreenshotGroupBy('month')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    screenshotGroupBy === 'month' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Month
+                </button>
+                <button
+                  onClick={() => setScreenshotGroupBy('day')}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                    screenshotGroupBy === 'day' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Day
+                </button>
+              </div>
+            </div>
+
             {/* List Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {loadingScreenshots ? (
@@ -779,7 +1111,8 @@ export function KhatabookView() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {screenshotsList.map((item) => {
+                  {/* ACCOUNT-WISE GROUPING */}
+                  {screenshotGroupBy === 'account' && screenshotsList.map((item) => {
                     const isExpanded = expandedAccountId === item.account_id;
                     return (
                       <div key={item.account_id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-all">
@@ -808,6 +1141,11 @@ export function KhatabookView() {
                                 <div>
                                   <div className="font-bold text-slate-800">{s.upload_date}</div>
                                   <div className="text-[10px] text-slate-400 font-semibold">{s.upload_time}</div>
+                                  {s.description && (
+                                    <div className="text-[11px] font-semibold text-indigo-900 mt-1 bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md max-w-[220px] truncate" title={s.description}>
+                                      {s.description}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -827,6 +1165,182 @@ export function KhatabookView() {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* MONTH-WISE GROUPING */}
+                  {screenshotGroupBy === 'month' && getGroupedByMonth().map((item) => {
+                    const isMonthExpanded = expandedMonth === item.month;
+                    return (
+                      <div key={item.month} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-all mb-3">
+                        {/* Month Accordion Header */}
+                        <div
+                          onClick={() => setExpandedMonth(isMonthExpanded ? null : item.month)}
+                          className="p-4 bg-white hover:bg-slate-50 flex items-center justify-between cursor-pointer border-b border-slate-100"
+                        >
+                          <div>
+                            <h4 className="font-extrabold text-sm text-slate-900">{item.month}</h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-black">
+                              {item.totalCount} Screenshots
+                            </span>
+                            <span className="text-slate-400 text-xs">{isMonthExpanded ? '▲' : '▼'}</span>
+                          </div>
+                        </div>
+
+                        {/* Accounts List for Month */}
+                        {isMonthExpanded && (
+                          <div className="p-3 bg-slate-50/50 space-y-2 max-h-96 overflow-y-auto">
+                            {item.accounts.map((acc) => {
+                              const subKey = `${item.month}_${acc.account_id}`;
+                              const isSubExpanded = expandedSubKey === subKey;
+                              return (
+                                <div key={acc.account_id} className="border border-slate-200/60 rounded-xl bg-white overflow-hidden">
+                                  <div
+                                    onClick={() => setExpandedSubKey(isSubExpanded ? null : subKey)}
+                                    className="p-3 hover:bg-slate-50 flex items-center justify-between cursor-pointer border-b border-slate-100"
+                                  >
+                                    <div>
+                                      <h5 className="font-black text-xs text-slate-800">{acc.account_holder}</h5>
+                                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{acc.name}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-black">
+                                        {acc.screenshot_count} Screenshots
+                                      </span>
+                                      <span className="text-slate-400 text-[10px]">{isSubExpanded ? '▲' : '▼'}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Screenshots for Account under Month */}
+                                  {isSubExpanded && (
+                                    <div className="p-2 bg-slate-50/50 divide-y divide-slate-200/40">
+                                      {acc.screenshots.map((s: any) => (
+                                        <div key={s.id} className="py-2 flex items-center justify-between text-xs first:pt-0 last:pb-0">
+                                          <div>
+                                            <div className="font-bold text-slate-800">{s.upload_date}</div>
+                                            <div className="text-[10px] text-slate-400 font-semibold">{s.upload_time}</div>
+                                            {s.description && (
+                                              <div className="text-[11px] font-semibold text-indigo-900 mt-1 bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md max-w-[220px] truncate" title={s.description}>
+                                                {s.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={() => setViewingScreenshotUrl(s.image_url)}
+                                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-extrabold rounded-lg border border-indigo-100 transition-all cursor-pointer"
+                                            >
+                                              <Eye className="w-3.5 h-3.5" />
+                                              <span>View</span>
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteScreenshot(s.id)}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-100 transition-all cursor-pointer"
+                                              title="Delete Screenshot"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* DAY-WISE GROUPING */}
+                  {screenshotGroupBy === 'day' && getGroupedByDay().map((item) => {
+                    const isDayExpanded = expandedDay === item.day;
+                    return (
+                      <div key={item.day} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-all mb-3">
+                        {/* Day Accordion Header */}
+                        <div
+                          onClick={() => setExpandedDay(isDayExpanded ? null : item.day)}
+                          className="p-4 bg-white hover:bg-slate-50 flex items-center justify-between cursor-pointer border-b border-slate-100"
+                        >
+                          <div>
+                            <h4 className="font-extrabold text-sm text-slate-900">{item.day}</h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black">
+                              {item.totalCount} Screenshots
+                            </span>
+                            <span className="text-slate-400 text-xs">{isDayExpanded ? '▲' : '▼'}</span>
+                          </div>
+                        </div>
+
+                        {/* Accounts List for Day */}
+                        {isDayExpanded && (
+                          <div className="p-3 bg-slate-50/50 space-y-2 max-h-96 overflow-y-auto">
+                            {item.accounts.map((acc) => {
+                              const subKey = `${item.day}_${acc.account_id}`;
+                              const isSubExpanded = expandedSubKey === subKey;
+                              return (
+                                <div key={acc.account_id} className="border border-slate-200/60 rounded-xl bg-white overflow-hidden">
+                                  <div
+                                    onClick={() => setExpandedSubKey(isSubExpanded ? null : subKey)}
+                                    className="p-3 hover:bg-slate-50 flex items-center justify-between cursor-pointer border-b border-slate-100"
+                                  >
+                                    <div>
+                                      <h5 className="font-black text-xs text-slate-800">{acc.account_holder}</h5>
+                                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{acc.name}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-black">
+                                        {acc.screenshot_count} Screenshots
+                                      </span>
+                                      <span className="text-slate-400 text-[10px]">{isSubExpanded ? '▲' : '▼'}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Screenshots for Account under Day */}
+                                  {isSubExpanded && (
+                                    <div className="p-2 bg-slate-50/50 divide-y divide-slate-200/40">
+                                      {acc.screenshots.map((s: any) => (
+                                        <div key={s.id} className="py-2 flex items-center justify-between text-xs first:pt-0 last:pb-0">
+                                          <div>
+                                            <div className="font-bold text-slate-800">{s.upload_date}</div>
+                                            <div className="text-[10px] text-slate-400 font-semibold">{s.upload_time}</div>
+                                            {s.description && (
+                                              <div className="text-[11px] font-semibold text-indigo-900 mt-1 bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md max-w-[220px] truncate" title={s.description}>
+                                                {s.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              onClick={() => setViewingScreenshotUrl(s.image_url)}
+                                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-extrabold rounded-lg border border-indigo-100 transition-all cursor-pointer"
+                                            >
+                                              <Eye className="w-3.5 h-3.5" />
+                                              <span>View</span>
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteScreenshot(s.id)}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-100 transition-all cursor-pointer"
+                                              title="Delete Screenshot"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

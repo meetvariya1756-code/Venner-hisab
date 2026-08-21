@@ -48,7 +48,7 @@ export const MobileChecklistView: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6">
       {/* Top Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -60,14 +60,14 @@ export const MobileChecklistView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="w-full sm:w-auto">
             <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Statement Month</label>
             <input
               type="month"
               value={yearMonth}
               onChange={(e) => setYearMonth(e.target.value)}
-              className="glass-input bg-slate-50 font-bold text-xs py-1.5"
+              className="glass-input bg-slate-50 font-bold text-xs py-1.5 w-full sm:w-auto"
             />
           </div>
 
@@ -80,7 +80,7 @@ export const MobileChecklistView: React.FC = () => {
                 alert(e.message || 'Failed to send reminders');
               }
             }}
-            className="mt-4 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            className="mt-0 sm:mt-4 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer whitespace-nowrap"
             title="Send Automated End-of-Month Reminders to all pending stores"
           >
             <MessageSquare className="w-4 h-4" /> Send Month-End Reminders
@@ -88,7 +88,7 @@ export const MobileChecklistView: React.FC = () => {
 
           <button
             onClick={() => loadChecklist(yearMonth)}
-            className="mt-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+            className="mt-0 sm:mt-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors self-end sm:self-auto"
             title="Refresh Upload Status"
           >
             <RefreshCw className="w-4 h-4" />

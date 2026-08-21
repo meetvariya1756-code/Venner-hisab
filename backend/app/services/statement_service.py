@@ -70,8 +70,9 @@ class StatementService:
             ]
 
         grouped: Dict[str, List[NormalizedTransaction]] = {}
+        fallback_ym = parsing_result.year_month if parsing_result.year_month and parsing_result.year_month != "Unknown" else None
         for tx in parsing_result.transactions:
-            ym = tx.date[:7] if tx.date and len(tx.date) >= 7 else "Unknown"
+            ym = tx.date[:7] if tx.date and len(tx.date) >= 7 else (fallback_ym or "Unknown")
             if ym not in grouped:
                 grouped[ym] = []
             grouped[ym].append(tx)
@@ -142,7 +143,9 @@ class StatementService:
         for chunk in chunks:
             existing = db.query(Statement).filter(
                 Statement.account_id == account_id,
-                Statement.year_month == chunk.year_month
+                Statement.year_month == chunk.year_month,
+                Statement.transaction_count > 0,
+                Statement.year_month != "Unknown"
             ).first()
 
             status = "already_uploaded" if existing else "new"
@@ -227,10 +230,16 @@ class StatementService:
         store_slug = store_name.replace(" ", "_").lower()
 
         for chunk in chunks:
+            # Skip empty or Unknown chunks with 0 transactions
+            if chunk.year_month == "Unknown" and len(chunk.transactions) == 0:
+                continue
+
             # Check if this month is already uploaded
             existing = db.query(Statement).filter(
                 Statement.account_id == account_id,
-                Statement.year_month == chunk.year_month
+                Statement.year_month == chunk.year_month,
+                Statement.transaction_count > 0,
+                Statement.year_month != "Unknown"
             ).first()
 
             if existing:

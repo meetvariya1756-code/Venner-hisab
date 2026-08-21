@@ -72,6 +72,16 @@ class MobileAuthRequest(BaseModel):
     account_holder: Optional[str] = None
     access_code: Optional[str] = None
 
+class MobileAccountOption(BaseModel):
+    id: int
+    name: str
+    account_holder: Optional[str] = None
+    bank_name: str
+    platform_name: str
+    account_number: str
+    masked_account_number: str
+    pdf_password: Optional[str] = None
+
 class MobileAuthOut(BaseModel):
     store_id: int
     store_name: str
@@ -85,6 +95,7 @@ class MobileAuthOut(BaseModel):
     platform_name: str
     phone_number: Optional[str] = None
     pdf_password: Optional[str] = None
+    all_accounts: Optional[List[MobileAccountOption]] = None
 
 
 class AccountChecklistOut(BaseModel):
@@ -199,4 +210,7 @@ class TransactionUpdate(BaseModel):
     party_id: Optional[int] = None
     category_id: Optional[int] = None
     review_status: Optional[str] = None
+    create_rule: bool = False
+    pattern: Optional[str] = None
+    rule_name: Optional[str] = None
 

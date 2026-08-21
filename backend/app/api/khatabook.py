@@ -351,6 +351,7 @@ def get_khatabook_screenshots(db: Session = Depends(get_db)):
                     "filename": s.filename,
                     "upload_date": s.uploaded_at.strftime("%Y-%m-%d"),
                     "upload_time": s.uploaded_at.strftime("%I:%M %p"),
+                    "description": s.description,
                     "image_url": f"/api/mobile/screenshots/file/{s.filename}"
                 } for s in screenshots]
             })
