@@ -25,6 +25,25 @@ export interface BankAccount {
   created_at: string;
 }
 
+export interface StatementRecord {
+  id: number;
+  account_id: number;
+  filename: string;
+  year_month: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  opening_balance: number;
+  closing_balance: number;
+  total_credits: number;
+  total_debits: number;
+  transaction_count: number;
+  status: string;
+  uploaded_via_mobile: boolean;
+  uploader_name?: string | null;
+  uploaded_at?: string | null;
+  has_file: boolean;
+}
+
 export interface AccountChecklist {
   account_id: number;
   store_name: string;

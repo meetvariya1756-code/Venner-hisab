@@ -238,12 +238,27 @@ def create_khatabook_entry(
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than 0")
 
-    parsed_date = datetime.utcnow()
+    now = datetime.now()
+    parsed_date = now
     if entry_date:
+        entry_date_str = entry_date.strip()
         try:
-            parsed_date = datetime.strptime(entry_date.strip(), "%Y-%m-%d")
+            parsed_date = datetime.fromisoformat(entry_date_str)
         except ValueError:
-            pass
+            try:
+                parsed_date = datetime.strptime(entry_date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                try:
+                    parsed_date = datetime.strptime(entry_date_str, "%Y-%m-%d %H:%M")
+                except ValueError:
+                    try:
+                        d = datetime.strptime(entry_date_str, "%Y-%m-%d").date()
+                        if d == now.date():
+                            parsed_date = datetime.combine(d, now.time())
+                        else:
+                            parsed_date = datetime.combine(d, datetime.min.time())
+                    except ValueError:
+                        pass
 
     bill_path = None
     if bill_file and bill_file.filename:
@@ -295,10 +310,25 @@ def update_khatabook_entry(
         entry.description = description
 
     if entry_date:
+        entry_date_str = entry_date.strip()
+        now = datetime.now()
         try:
-            entry.entry_date = datetime.strptime(entry_date.strip(), "%Y-%m-%d")
+            entry.entry_date = datetime.fromisoformat(entry_date_str)
         except ValueError:
-            pass
+            try:
+                entry.entry_date = datetime.strptime(entry_date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                try:
+                    entry.entry_date = datetime.strptime(entry_date_str, "%Y-%m-%d %H:%M")
+                except ValueError:
+                    try:
+                        d = datetime.strptime(entry_date_str, "%Y-%m-%d").date()
+                        if d == now.date():
+                            entry.entry_date = datetime.combine(d, now.time())
+                        else:
+                            entry.entry_date = datetime.combine(d, datetime.min.time())
+                    except ValueError:
+                        pass
 
     if bill_file and bill_file.filename:
         ext = os.path.splitext(bill_file.filename)[1]

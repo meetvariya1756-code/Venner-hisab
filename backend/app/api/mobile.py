@@ -390,6 +390,17 @@ def download_original_statement_pdf(statement_id: int, db: Session = Depends(get
         media_type="application/pdf"
     )
 
+@router.delete("/statements/{statement_id}")
+def delete_mobile_statement(statement_id: int, db: Session = Depends(get_db)):
+    from app.api.statements import delete_statement
+    return delete_statement(statement_id=statement_id, db=db)
+
+@router.delete("/statements/account/{account_id}/month/{year_month}")
+def delete_mobile_statement_by_month(account_id: int, year_month: str, db: Session = Depends(get_db)):
+    from app.api.statements import delete_statement_by_month
+    return delete_statement_by_month(account_id=account_id, year_month=year_month, db=db)
+
+
 @router.get("/accounts")
 def get_mobile_active_accounts(db: Session = Depends(get_db)):
     accounts = db.query(BankAccount).all()
@@ -436,7 +447,7 @@ async def upload_upi_screenshot(
         amount=amount,
         entry_type=entry_type,
         description=description,
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.now()
     )
     db.add(screenshot)
     db.commit()
@@ -456,7 +467,7 @@ async def upload_upi_screenshot(
             entry_type=mapped_entry_type,
             amount=amount if amount is not None else 0.0,
             description=description or "",
-            entry_date=datetime.utcnow(),
+            entry_date=datetime.now(),
             bill_image_path=bill_save_path
         )
         db.add(new_entry)

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { BankAccount, StatementSummary, Platform } from '../../types';
 import { api } from '../../api/client';
-import { FileText, ArrowDownLeft, ArrowUpRight, Upload, Search } from 'lucide-react';
+import { FileText, ArrowDownLeft, ArrowUpRight, Upload, Search, Trash2 } from 'lucide-react';
 
 interface StatementSummaryViewProps {
   initialAccountId?: number;
@@ -20,6 +20,7 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
 
   const [summary, setSummary] = useState<StatementSummary | null>(null);
   const [_loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [search, setSearch] = useState('');
 
@@ -76,6 +77,24 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
       setSummary(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteMonth = async () => {
+    if (!selectedAccountId || !selectedYearMonth) return;
+    const storeName = currentAccount?.name || 'this store account';
+    if (!window.confirm(`Are you sure you want to delete the bank statement and month records for ${storeName} (${selectedYearMonth})?\n\nThis will permanently delete the uploaded PDF and remove all ${summary?.total_transactions || 0} imported transactions from the database.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await api.deleteStatementByMonth(selectedAccountId, selectedYearMonth);
+      await loadStatementSummary(selectedAccountId, selectedYearMonth);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete statement month.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -171,13 +190,25 @@ export const StatementSummaryView: React.FC<StatementSummaryViewProps> = ({
           </div>
 
           {selectedAccountId > 0 && (
-            <div>
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => onUploadClick(selectedAccountId)}
                 className="bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
               >
                 <Upload className="w-4 h-4" /> Upload PDF
               </button>
+
+              {summary && summary.total_transactions > 0 && (
+                <button
+                  onClick={handleDeleteMonth}
+                  disabled={deleting}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Delete statement and remove all transactions for this month from database"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  {deleting ? 'Deleting Month...' : 'Delete Month'}
+                </button>
+              )}
             </div>
           )}
         </div>

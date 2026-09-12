@@ -11,9 +11,9 @@ class KhatabookEntry(Base):
     entry_type = Column(String(10), nullable=False)  # "GAVE" or "GOT"
     amount = Column(Float, nullable=False)
     description = Column(Text, nullable=True)  # e.g., "BARFI-PC-2 8 BARFI-PC-3 30"
-    entry_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    entry_date = Column(DateTime, default=datetime.now, nullable=False)
     bill_image_path = Column(String(500), nullable=True)
     created_by_user_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     account = relationship("BankAccount", backref="khatabook_entries")

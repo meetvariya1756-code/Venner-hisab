@@ -305,6 +305,29 @@ export const api = {
     return res.json();
   },
 
+  async deleteStatement(statementId: number): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/statements/${statementId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete statement');
+    }
+    return res.json();
+  },
+
+  async deleteStatementByMonth(accountId: number, yearMonth: string): Promise<any> {
+    const res = await fetchApi(`${API_BASE}/statements/account/${accountId}/month/${yearMonth}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete statement month');
+    }
+    return res.json();
+  },
+
+
   // Transactions
   async getTransactions(params?: {
     account_id?: number;

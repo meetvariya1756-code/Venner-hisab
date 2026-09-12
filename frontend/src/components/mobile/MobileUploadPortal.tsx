@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 import { 
   Smartphone, CheckCircle2, AlertCircle, FileText, KeyRound, ArrowRight, 
-  Building2, User, Landmark, Phone, LogOut, Download, 
+  Building2, User, Landmark, Phone, LogOut, Download, Trash2,
   ShieldCheck, Camera, Image
 } from 'lucide-react';
 
@@ -86,6 +86,25 @@ export const MobileUploadPortal: React.FC = () => {
         localStorage.removeItem('hisab_mobile_session');
       }
     }
+
+    // ── Listen for Web Share Target incoming files (e.g. shared from Google Pay / System Share Sheet) ──
+    if ('launchQueue' in window && (window as any).launchQueue) {
+      try {
+        (window as any).launchQueue.setConsumer(async (launchParams: any) => {
+          if (launchParams.files && launchParams.files.length > 0) {
+            const fileHandle = launchParams.files[0];
+            const blob = await fileHandle.getFile();
+            const sharedFile = new File([blob], blob.name || 'shared_payment_screenshot.png', {
+              type: blob.type || 'image/png'
+            });
+            setScreenshotFile(sharedFile);
+            setActiveTab('screenshots');
+          }
+        });
+      } catch (e) {
+        console.error('LaunchQueue listener error:', e);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -166,6 +185,19 @@ export const MobileUploadPortal: React.FC = () => {
       console.error(e);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteStatement = async (statementId: number, yearMonth: string) => {
+    if (!session) return;
+    if (!window.confirm(`Are you sure you want to delete the uploaded statement for period ${yearMonth}?\n\nThis will permanently delete the PDF file and remove all imported transactions for this month from the database.`)) {
+      return;
+    }
+    try {
+      await api.deleteStatement(statementId);
+      await loadStatementHistory(session.store_id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete statement month.');
     }
   };
 
@@ -523,15 +555,24 @@ export const MobileUploadPortal: React.FC = () => {
                           </div>
                         </div>
 
-                        <a
-                          href={api.getDownloadStatementUrl(stmt.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all border border-indigo-100 shrink-0"
-                          title="Download PDF"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <a
+                            href={api.getDownloadStatementUrl(stmt.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all border border-indigo-100 shrink-0"
+                            title="Download PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteStatement(stmt.id, stmt.year_month)}
+                            className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all border border-rose-100 shrink-0 cursor-pointer"
+                            title="Delete Statement Month"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -1,4 +1,4 @@
-# Quick Start — Venner-Hisab Project
+s# Quick Start — Venner-Hisab Project
 
 ## ⚡ TL;DR - Start Project in 10 Seconds
 

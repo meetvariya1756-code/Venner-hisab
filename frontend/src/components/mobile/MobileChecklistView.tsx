@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { AccountChecklist } from '../../types';
 import { api } from '../../api/client';
-import { Smartphone, CheckCircle2, Clock, Download, MessageSquare, RefreshCw, Search } from 'lucide-react';
+import { Smartphone, CheckCircle2, Clock, Download, MessageSquare, RefreshCw, Search, Trash2 } from 'lucide-react';
 
 export const MobileChecklistView: React.FC = () => {
   const [yearMonth, setYearMonth] = useState<string>('2026-02');
@@ -25,11 +25,23 @@ export const MobileChecklistView: React.FC = () => {
     }
   };
 
+  const handleDeleteMonth = async (item: AccountChecklist) => {
+    if (!window.confirm(`Are you sure you want to delete the uploaded statement month for ${item.store_name} (${yearMonth})?\n\nThis will remove the PDF and purge all transactions for this month from the database.`)) {
+      return;
+    }
+    try {
+      await api.deleteStatementByMonth(item.account_id, yearMonth);
+      await loadChecklist(yearMonth);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete statement month.');
+    }
+  };
+
   const handleSendWhatsAppReminder = (item: AccountChecklist) => {
     // MAIN COMPANY NUMBER FOR REMINDERS
     // If you need to change the phone number in the future, change it right here:
-    const MAIN_COMPANY_NO = "+91 83475 82055";
-    
+    const MAIN_COMPANY_NO = "+91 75740 01756";
+
     const mobilePortalUrl = `${window.location.origin}/?portal=mobile`;
     const msg = `Hello ${item.account_holder || item.store_name},\n\nPlease upload your bank statement PDF for store *${item.store_name}* (${yearMonth}) using this mobile link:\n${mobilePortalUrl}\n\nIf you need help, contact us at ${MAIN_COMPANY_NO}.\nThank you!`;
     const encoded = encodeURIComponent(msg);
@@ -41,7 +53,7 @@ export const MobileChecklistView: React.FC = () => {
   const receivedCount = checklist.filter(c => c.status === 'RECEIVED').length;
   const pendingCount = checklist.length - receivedCount;
 
-  const filteredItems = checklist.filter(item => 
+  const filteredItems = checklist.filter(item =>
     item.store_name.toLowerCase().includes(search.toLowerCase()) ||
     (item.account_holder && item.account_holder.toLowerCase().includes(search.toLowerCase())) ||
     item.bank_name.toLowerCase().includes(search.toLowerCase())
@@ -191,15 +203,26 @@ export const MobileChecklistView: React.FC = () => {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {item.status === 'RECEIVED' && item.statement_id && (
-                            <a
-                              href={api.getDownloadStatementUrl(item.statement_id)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 inline-flex items-center gap-1.5 transition-all"
-                            >
-                              <Download className="w-3.5 h-3.5" /> Download PDF
-                            </a>
+                          {item.status === 'RECEIVED' && (
+                            <>
+                              {item.statement_id && (
+                                <a
+                                  href={api.getDownloadStatementUrl(item.statement_id)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 inline-flex items-center gap-1.5 transition-all"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> Download PDF
+                                </a>
+                              )}
+                              <button
+                                onClick={() => handleDeleteMonth(item)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-rose-200 inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Delete Statement Month"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Delete Month
+                              </button>
+                            </>
                           )}
 
                           <button

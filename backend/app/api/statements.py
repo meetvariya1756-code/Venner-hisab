@@ -143,3 +143,103 @@ async def confirm_statement_import(
         "imported_months": [s.year_month for s in imported_stmts],
         "skipped_months": skipped_m
     }
+
+@router.get("")
+@router.get("/")
+def list_statements(
+    account_id: Optional[int] = None,
+    year_month: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    from app.models.statement import Statement
+    query = db.query(Statement)
+    if account_id:
+        query = query.filter(Statement.account_id == account_id)
+    if year_month:
+        query = query.filter(Statement.year_month == year_month)
+    stmts = query.order_by(Statement.uploaded_at.desc()).all()
+    return [
+        {
+            "id": s.id,
+            "account_id": s.account_id,
+            "filename": s.filename,
+            "year_month": s.year_month,
+            "start_date": s.start_date,
+            "end_date": s.end_date,
+            "opening_balance": s.opening_balance,
+            "closing_balance": s.closing_balance,
+            "total_credits": s.total_credits,
+            "total_debits": s.total_debits,
+            "transaction_count": s.transaction_count,
+            "status": s.status,
+            "uploaded_via_mobile": s.uploaded_via_mobile,
+            "uploader_name": s.uploader_name,
+            "uploaded_at": s.uploaded_at.isoformat() if s.uploaded_at else None,
+            "has_file": bool(s.original_file_path and os.path.exists(s.original_file_path))
+        }
+        for s in stmts
+    ]
+
+@router.delete("/account/{account_id}/month/{year_month}")
+def delete_statement_by_month(account_id: int, year_month: str, db: Session = Depends(get_db)):
+    from app.models.statement import Statement
+    from app.models.transaction import Transaction
+
+    stmts = db.query(Statement).filter(
+        Statement.account_id == account_id,
+        Statement.year_month == year_month
+    ).all()
+    
+    if not stmts:
+        raise HTTPException(status_code=404, detail=f"No uploaded statement found for this account and period {year_month}.")
+
+    count = 0
+    for stmt in stmts:
+        db.query(Transaction).filter(Transaction.statement_id == stmt.id).delete(synchronize_session=False)
+        if stmt.original_file_path and os.path.exists(stmt.original_file_path):
+            try:
+                os.remove(stmt.original_file_path)
+            except Exception as e:
+                print(f"Warning: Failed to delete statement file from disk: {e}")
+        db.delete(stmt)
+        count += 1
+
+    db.commit()
+    return {"message": f"Successfully deleted {count} statement(s) and all associated transactions for period {year_month}."}
+
+@router.delete("/{statement_id}")
+def delete_statement(statement_id: int, db: Session = Depends(get_db)):
+    from app.models.statement import Statement
+    from app.models.transaction import Transaction
+
+    stmt = db.query(Statement).filter(Statement.id == statement_id).first()
+    if not stmt:
+        raise HTTPException(status_code=404, detail="Statement not found.")
+    
+    db.query(Transaction).filter(Transaction.statement_id == stmt.id).delete(synchronize_session=False)
+
+    if stmt.original_file_path and os.path.exists(stmt.original_file_path):
+        try:
+            os.remove(stmt.original_file_path)
+        except Exception as e:
+            print(f"Warning: Failed to delete statement file from disk: {e}")
+
+    db.delete(stmt)
+    db.commit()
+
+    return {"message": "Statement and associated transactions deleted successfully."}
+
+@router.get("/{statement_id}/download")
+def download_statement_file(statement_id: int, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+    from app.models.statement import Statement
+
+    stmt = db.query(Statement).filter(Statement.id == statement_id).first()
+    if not stmt or not stmt.original_file_path or not os.path.exists(stmt.original_file_path):
+        raise HTTPException(status_code=404, detail="Original statement file not found.")
+    return FileResponse(
+        path=stmt.original_file_path,
+        filename=os.path.basename(stmt.original_file_path),
+        media_type="application/pdf"
+    )
+

@@ -49,7 +49,7 @@ export function KhatabookView() {
   // Form Fields
   const [formAmount, setFormAmount] = useState('');
   const [formDescription, setFormDescription] = useState('');
-  const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [formBillFile, setFormBillFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -272,7 +272,7 @@ export function KhatabookView() {
     setDrawerType(type);
     setFormAmount('');
     setFormDescription('');
-    setFormDate(new Date().toISOString().split('T')[0]);
+    setFormDate(new Date().toLocaleDateString('en-CA'));
     setFormBillFile(null);
     setIsDrawerOpen(true);
   };
@@ -282,7 +282,7 @@ export function KhatabookView() {
     setDrawerType(entry.entry_type);
     setFormAmount(entry.amount.toString());
     setFormDescription(entry.description || '');
-    setFormDate(entry.entry_date || new Date().toISOString().split('T')[0]);
+    setFormDate(entry.entry_date || new Date().toLocaleDateString('en-CA'));
     setFormBillFile(null);
     setIsDrawerOpen(true);
   };

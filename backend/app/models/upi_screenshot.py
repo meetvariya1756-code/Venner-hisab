@@ -14,7 +14,7 @@ class UPIScreenshot(Base):
     amount = Column(Float, nullable=True)
     entry_type = Column(String(20), nullable=True)
     description = Column(String(500), nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime, default=datetime.now)
 
     account = relationship("BankAccount", foreign_keys=[account_id], back_populates="upi_screenshots")
     target_account = relationship("BankAccount", foreign_keys=[target_account_id])

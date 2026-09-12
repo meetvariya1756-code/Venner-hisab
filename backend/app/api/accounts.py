@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -76,6 +77,16 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
     acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
     if not acc:
         raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Clean up physical PDF files of all statements associated with this account
+    if acc.statements:
+        for stmt in acc.statements:
+            if stmt.original_file_path and os.path.exists(stmt.original_file_path):
+                try:
+                    os.remove(stmt.original_file_path)
+                except Exception as e:
+                    print(f"Warning: Failed to delete statement file from disk: {e}")
+
     db.delete(acc)
     db.commit()
     return {"message": "Account deleted successfully"}

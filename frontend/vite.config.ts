@@ -23,7 +23,20 @@ export default defineConfig({
             type: 'image/svg+xml',
             purpose: 'any maskable'
           }
-        ]
+        ],
+        share_target: {
+          action: '/?portal=mobile',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            files: [
+              {
+                name: 'screenshot',
+                accept: ['image/*']
+              }
+            ]
+          }
+        } as any
       },
       devOptions: {
         enabled: false

@@ -10,5 +10,5 @@
     "balance": ["balance"]
   },
   "date_formats": ["%d %b %Y", "%d/%m/%Y", "%d-%b-%Y"],
-  "ignore_narrations": ["BROUGHT FORWARD", "CARRIED FORWARD", "STATEMENT OF ACCOUNT"]
+  "ignore_narrations": ["BROUGHT FORWARD", "CARRIED FORWARD", "STATEMENT OF ACCOUNT", "STATEMENT SUMMARY", "CLOSING BALANCE", "OPENING BALANCE", "Cr Count", "Dr Count", "ACCOUNT SUMMARY"]
 }

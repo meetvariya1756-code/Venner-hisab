@@ -78,14 +78,28 @@ class StatementService:
             grouped[ym].append(tx)
 
         chunks: List[MonthlyChunk] = []
-        for ym in sorted(grouped.keys()):
+        sorted_keys = sorted(grouped.keys())
+        is_single_month = (len(sorted_keys) == 1)
+
+        for ym in sorted_keys:
             txs = sorted(grouped[ym], key=lambda x: x.date)
             start_date = txs[0].date
             end_date = txs[-1].date
-            total_credits = sum(t.credit for t in txs)
-            total_debits = sum(t.debit for t in txs)
-            opening_bal = txs[0].balance - txs[0].credit + txs[0].debit
-            closing_bal = txs[-1].balance
+            total_credits = round(sum(t.credit for t in txs), 2)
+            total_debits = round(sum(t.debit for t in txs), 2)
+
+            if is_single_month and parsing_result.opening_balance is not None and parsing_result.opening_balance != 0.0:
+                opening_bal = round(parsing_result.opening_balance, 2)
+            else:
+                opening_bal = round(txs[0].balance - txs[0].credit + txs[0].debit, 2)
+
+            if is_single_month and parsing_result.closing_balance is not None and parsing_result.closing_balance != 0.0:
+                closing_bal = round(parsing_result.closing_balance, 2)
+            elif txs[-1].balance > 0:
+                closing_bal = round(txs[-1].balance, 2)
+            else:
+                closing_bal = round(opening_bal + total_credits - total_debits, 2)
+
             page_nums = sorted(list(set(t.page_number for t in txs if t.page_number)))
             if not page_nums:
                 page_nums = [1]
