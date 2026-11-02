@@ -18,6 +18,9 @@ class BankAccount(Base):
     access_code = Column(String(50), unique=True, nullable=True, index=True)  # Mobile app upload PIN code e.g. "DAPPERDOM-7849"
     phone_number = Column(String(30), nullable=True)  # Account holder phone for WhatsApp reminders
     pdf_password = Column(String(100), nullable=True)  # Statement PDF password (if protected) — stored as hint for mobile
+    credit_limit = Column(Float, default=0.0)  # Maximum credit limit in INR (0 = no limit)
+    due_date = Column(DateTime, nullable=True)  # Repayment / settlement due date
+    upi_id = Column(String(100), nullable=True)  # e.g., "venner@okhdfcbank" or customer UPI ID
     created_at = Column(DateTime, default=datetime.utcnow)
 
     platform = relationship("Platform", back_populates="accounts")

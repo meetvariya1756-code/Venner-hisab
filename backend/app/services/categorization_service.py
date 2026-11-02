@@ -7,6 +7,20 @@ from app.models.category import Category
 
 class CategorizationService:
     @staticmethod
+    def is_meesho_transaction(narration: str) -> bool:
+        if not narration:
+            return False
+        # Normalize whitespace (handles line breaks and multiple spaces)
+        norm = " ".join(narration.upper().split())
+        meesho_patterns = [
+            "MEESHO TECHNOLO",
+            "CASHFREE PAYMENTS ESCROW",
+            "CASHFREE PAYMENTS",
+            "MEESHO",
+        ]
+        return any(pat in norm for pat in meesho_patterns)
+
+    @staticmethod
     def auto_categorize(narration: str, db: Session) -> Tuple[Optional[int], Optional[int], str]:
         """
         Matches transaction narration against rules ordered by priority.
@@ -14,6 +28,20 @@ class CategorizationService:
         """
         if not narration:
             return None, None, "uncategorized"
+
+        # Explicit Meesho detection logic (MEESHO TECHNOLO, CASHFREE PAYMENTS, CASHFREE PAYMENTS ESCROW)
+        if CategorizationService.is_meesho_transaction(narration):
+            meesho_party = db.query(Party).filter(Party.name.ilike("Meesho")).first()
+            if meesho_party:
+                party_id = meesho_party.id
+                cat_id = meesho_party.category_id
+            else:
+                party_id = 1
+                cat_id = 1
+            if not cat_id:
+                meesho_cat = db.query(Category).filter(Category.name.ilike("%Meesho%")).first()
+                cat_id = meesho_cat.id if meesho_cat else 1
+            return party_id, cat_id, "auto_matched"
 
         narr_upper = narration.upper()
 

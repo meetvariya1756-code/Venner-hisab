@@ -9,3 +9,4 @@ python-multipart
 pandas
 openpyxl
 psycopg2-binary
+reportlab>=4.0.0

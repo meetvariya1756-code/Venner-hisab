@@ -1,4 +1,4 @@
-import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry, OwnerDashboard } from '../types';
+import type { Platform, BankAccount, Category, Party, CategorizationRule, Transaction, ParsePreviewResult, DashboardSummary, PlatformBreakdown, StatementSummary, PartyExpense, AccountChecklist, User, UserRole, KhatabookSummary, KhatabookAccount, KhatabookEntry, OwnerDashboard, AiChatResponse } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -191,6 +191,108 @@ export const api = {
       method: 'DELETE',
     });
     return res.json();
+  },
+
+  async downloadKhatabookPDF(options: {
+    accountId?: number | null;
+    periodType?: 'all' | 'year' | 'month' | 'custom';
+    year?: number;
+    month?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<void> {
+    const params = new URLSearchParams();
+    if (options.periodType) params.append('period_type', options.periodType);
+    if (options.year) params.append('year', options.year.toString());
+    if (options.month) params.append('month', options.month.toString());
+    if (options.startDate) params.append('start_date', options.startDate);
+    if (options.endDate) params.append('end_date', options.endDate);
+
+    const endpoint = options.accountId
+      ? `${API_BASE}/khatabook/accounts/${options.accountId}/export/pdf?${params.toString()}`
+      : `${API_BASE}/khatabook/export/pdf?${params.toString()}`;
+
+    const res = await fetchApi(endpoint);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to download PDF' }));
+      throw new Error(err.detail || 'Failed to download PDF');
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = 'Khatabook_Ledger.pdf';
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  async updateKhatabookAccountSettings(accountId: number, data: {
+    credit_limit?: number;
+    due_date?: string | null;
+    upi_id?: string | null;
+    phone_number?: string | null;
+  }): Promise<any> {
+    const formData = new FormData();
+    if (data.credit_limit !== undefined) formData.append('credit_limit', data.credit_limit.toString());
+    if (data.due_date !== undefined) formData.append('due_date', data.due_date || '');
+    if (data.upi_id !== undefined) formData.append('upi_id', data.upi_id || '');
+    if (data.phone_number !== undefined) formData.append('phone_number', data.phone_number || '');
+
+    const res = await fetchApi(`${API_BASE}/khatabook/accounts/${accountId}/settings`, {
+      method: 'PUT',
+      body: formData,
+    });
+    return res.json();
+  },
+
+  async parseBillReceipt(file: File): Promise<{
+    success: boolean;
+    filename: string;
+    detected_amount?: number | null;
+    detected_date?: string | null;
+    detected_description?: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetchApi(`${API_BASE}/khatabook/parse-bill-receipt`, {
+      method: 'POST',
+      body: formData,
+    });
+    return res.json();
+  },
+
+  async downloadSystemBackup(): Promise<void> {
+    const res = await fetchApi(`${API_BASE}/export/backup/download`);
+    if (!res.ok) {
+      throw new Error('Failed to download system backup');
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = 'Venner_Hisab_Backup.json';
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   },
 
   // Platforms
@@ -516,5 +618,21 @@ export const api = {
     if (accountId) q.append('account_id', accountId.toString());
     if (categoryId) q.append('category_id', categoryId.toString());
     return `${API_BASE}/export/transactions?${q.toString()}`;
+  },
+
+  // ── AI Assistant Chat ──────────────────────────────────────
+  async sendChatMessage(message: string, contextAccountId?: number): Promise<AiChatResponse> {
+    const res = await fetchApi(`${API_BASE}/chat/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, context_account_id: contextAccountId }),
+    });
+    return res.json();
+  },
+
+  async getChatSuggestions(): Promise<{ suggestions: string[] }> {
+    const res = await fetchApi(`${API_BASE}/chat/suggestions`);
+    return res.json();
   }
 };
+

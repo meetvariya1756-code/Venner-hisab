@@ -214,3 +214,27 @@ class TransactionUpdate(BaseModel):
     pattern: Optional[str] = None
     rule_name: Optional[str] = None
 
+
+# SellEase Integration Schemas (Strictly Required Fields)
+class SellEaseProductItem(BaseModel):
+    product_name: str  # Configured product name in SellEase (REQUIRED)
+    quantity: float    # Total pieces sold (REQUIRED)
+    price: float       # Product price configured in SellEase (REQUIRED)
+    total: float       # Line total amount: quantity * price (REQUIRED)
+    sku: Optional[str] = None
+    hsn_code: Optional[str] = None
+
+class SellEasePushRequest(BaseModel):
+    account: str                        # Customer / Account name e.g., "MANYA EMPIRE" (REQUIRED)
+    date: str                           # Sale Date e.g., "2026-08-26" or "26-8-2026" (REQUIRED)
+    products: List[SellEaseProductItem] # List of items sold (REQUIRED, non-empty)
+    grand_total: float                  # Grand total amount of all items (REQUIRED)
+    entry_type: str = "GAVE"            # "GAVE" (You Gave ₹ / Dispatched) or "GOT"
+    notes: Optional[str] = None
+    auto_create_account: bool = True
+    order_id: Optional[str] = None
+    label_batch_id: Optional[str] = None
+
+class SellEaseBatchPushRequest(BaseModel):
+    entries: List[SellEasePushRequest]
+

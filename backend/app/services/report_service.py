@@ -7,6 +7,7 @@ from app.models.statement import Statement
 from app.models.category import Category
 from app.models.party import Party
 from app.models.platform import Platform
+from app.services.categorization_service import CategorizationService
 
 class ReportService:
     @staticmethod
@@ -29,7 +30,32 @@ class ReportService:
         categories_map = {c.id: c.name for c in db.query(Category).all()}
         parties_map = {p.id: p.name for p in db.query(Party).all()}
 
+        # Lookup Meesho party & category for Meesho detection logic
+        meesho_party = db.query(Party).filter(Party.name.ilike("Meesho")).first()
+        meesho_party_id = meesho_party.id if meesho_party else 1
+        meesho_party_name = meesho_party.name if meesho_party else "Meesho"
+        meesho_cat_id = (meesho_party.category_id if meesho_party and meesho_party.category_id else None)
+        if not meesho_cat_id:
+            meesho_cat = db.query(Category).filter(Category.name.ilike("%Meesho%")).first()
+            meesho_cat_id = meesho_cat.id if meesho_cat else 1
+        meesho_cat_name = categories_map.get(meesho_cat_id, "Marketplace Sales – Meesho")
+
+        db_updated = False
         for t in txs:
+            # Check Meesho detection logic (MEESHO TECHNOLO, CASHFREE PAYMENTS, CASHFREE PAYMENTS ESCROW)
+            if CategorizationService.is_meesho_transaction(t.narration):
+                party_val = meesho_party_name
+                category_val = meesho_cat_name
+                if t.party_id != meesho_party_id or t.category_id != meesho_cat_id:
+                    t.party_id = meesho_party_id
+                    t.category_id = meesho_cat_id
+                    t.is_categorized = True
+                    t.review_status = "auto_matched"
+                    db_updated = True
+            else:
+                party_val = parties_map.get(t.party_id, None)
+                category_val = categories_map.get(t.category_id, "Uncategorized")
+
             item = {
                 "id": t.id,
                 "date": t.date,
@@ -37,14 +63,20 @@ class ReportService:
                 "ref_no": t.ref_no,
                 "amount": t.credit if t.credit > 0 else t.debit,
                 "balance": t.balance,
-                "category": categories_map.get(t.category_id, "Uncategorized"),
-                "party": parties_map.get(t.party_id, None),
+                "category": category_val,
+                "party": party_val,
                 "page_number": t.page_number
             }
             if t.credit > 0:
                 in_entries.append(item)
             if t.debit > 0:
                 out_entries.append(item)
+
+        if db_updated:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
 
         # Fetch statement to get opening and closing balances
         stmt = db.query(Statement).filter(

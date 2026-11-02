@@ -22,6 +22,9 @@ export interface BankAccount {
   access_code?: string | null;
   phone_number?: string | null;
   pdf_password?: string | null;
+  credit_limit?: number;
+  due_date?: string | null;
+  upi_id?: string | null;
   created_at: string;
 }
 
@@ -237,6 +240,12 @@ export interface KhatabookSummary {
   total_give: number;
   total_get: number;
   accounts_count: number;
+  aging?: {
+    days_0_30: number;
+    days_31_60: number;
+    days_60_plus: number;
+    overdue_count: number;
+  };
 }
 
 export interface KhatabookAccount {
@@ -246,6 +255,13 @@ export interface KhatabookAccount {
   bank_name: string;
   account_number: string;
   phone_number?: string | null;
+  credit_limit?: number;
+  due_date?: string | null;
+  upi_id?: string | null;
+  is_overdue?: boolean;
+  days_overdue?: number;
+  credit_used_percent?: number;
+  aging_bucket?: '0-30 days' | '31-60 days' | '60+ days';
   total_in: number;
   total_out: number;
   net_balance: number;
@@ -309,3 +325,51 @@ export interface OwnerDashboard {
   top_credit_accounts: AccountAnalytics[];
   top_debit_accounts: AccountAnalytics[];
 }
+
+export interface AiQuickAction {
+  label: string;
+  action: string;
+  accountId?: number;
+  accountName?: string;
+  upiId?: string;
+}
+
+export interface AiClarificationOption {
+  id: number;
+  name: string;
+  holder?: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  intent: string;
+  language: 'english' | 'gujarati' | 'gujlish' | 'hinglish';
+  matched_account?: {
+    id: number;
+    name: string;
+    account_holder: string;
+    bank_name: string;
+    account_number: string;
+    phone_number?: string;
+    upi_id?: string;
+    credit_limit?: number;
+    due_date?: string | null;
+    financials: {
+      total_gave: number;
+      total_got: number;
+      net_balance: number;
+      status: 'YOU_WILL_GET' | 'YOU_WILL_GIVE' | 'SETTLED';
+      entries_count: number;
+      recent_entries: {
+        id: number;
+        type: 'GAVE' | 'GOT';
+        amount: number;
+        description: string;
+        date: string;
+      }[];
+    };
+  } | null;
+  clarification_options: AiClarificationOption[];
+  quick_actions: AiQuickAction[];
+}
+

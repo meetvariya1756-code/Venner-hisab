@@ -28,7 +28,7 @@ DEFAULT_CATEGORIES = [
 ]
 
 DEFAULT_PARTIES = [
-    {"name": "Meesho", "category_id": 1, "aliases": '["MEESHO TECHNOLOGIES", "MEESHO", "MEESHOPAY", "MEESHO PAYMEN", "MESHO SETTLE"]'},
+    {"name": "Meesho", "category_id": 1, "aliases": '["MEESHO TECHNOLOGIES", "MEESHO", "MEESHOPAY", "MEESHO PAYMEN", "MESHO SETTLE", "MEESHO TECHNOLO", "CASHFREE PAYMENTS", "CASHFREE PAYMENTS ESCROW"]'},
     {"name": "Flipkart", "category_id": 2, "aliases": '["FLIPKART", "FKMP", "INSTAKART"]'},
     {"name": "Amazon", "category_id": 3, "aliases": '["AMAZON", "ATVP", "AMZN"]'},
     {"name": "BharatPe", "category_id": 4, "aliases": '["BHARATPE", "PAY TO BHARATPE"]'},
@@ -38,6 +38,30 @@ DEFAULT_RULES = [
     {
         "name": "Meesho Settlement Rule",
         "pattern": "MEESHO",
+        "match_type": "KEYWORD",
+        "party_id": 1,
+        "category_id": 1,
+        "priority": 1,
+    },
+    {
+        "name": "Meesho Technolo Rule",
+        "pattern": "MEESHO TECHNOLO",
+        "match_type": "KEYWORD",
+        "party_id": 1,
+        "category_id": 1,
+        "priority": 1,
+    },
+    {
+        "name": "Meesho Cashfree Payments Rule",
+        "pattern": "CASHFREE PAYMENTS",
+        "match_type": "KEYWORD",
+        "party_id": 1,
+        "category_id": 1,
+        "priority": 1,
+    },
+    {
+        "name": "Meesho Cashfree Escrow Rule",
+        "pattern": "CASHFREE PAYMENTS ESCROW",
         "match_type": "KEYWORD",
         "party_id": 1,
         "category_id": 1,

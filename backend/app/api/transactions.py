@@ -8,6 +8,7 @@ from app.models.party import Party
 from app.models.rule import CategorizationRule
 from app.schemas.schemas import TransactionOut, TransactionUpdate
 from app.services.statement_service import StatementService
+from app.services.categorization_service import CategorizationService
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -47,8 +48,13 @@ def get_transactions(
     res = []
     for t in txs:
         out = TransactionOut.model_validate(t)
-        out.category_name = categories_map.get(t.category_id) if t.category_id else "Uncategorized"
-        out.party_name = parties_map.get(t.party_id) if t.party_id else None
+        cat_name = categories_map.get(t.category_id)
+        party_name = parties_map.get(t.party_id)
+        if (not cat_name or not party_name) and CategorizationService.is_meesho_transaction(t.narration):
+            cat_name = cat_name or "Marketplace Sales – Meesho"
+            party_name = party_name or "Meesho"
+        out.category_name = cat_name if cat_name else "Uncategorized"
+        out.party_name = party_name
         res.append(out)
 
     return res

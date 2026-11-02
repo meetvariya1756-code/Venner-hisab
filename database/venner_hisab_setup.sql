@@ -220,10 +220,13 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.rules (name, pattern, match_type, field, party_id, category_id, priority)
 SELECT r.name, r.pattern, 'KEYWORD', 'narration', p.id, r.cat_id, r.prio
 FROM (VALUES
-    ('Meesho Settlement Rule',   'MEESHO',   'Meesho',   1, 1),
-    ('Flipkart Settlement Rule', 'FLIPKART', 'Flipkart', 2, 2),
-    ('Amazon Settlement Rule',   'AMAZON',   'Amazon',   3, 3),
-    ('BharatPe Payment Rule',    'BHARATPE', 'BharatPe', 4, 4)
+    ('Meesho Settlement Rule',          'MEESHO',                   'Meesho',   1, 1),
+    ('Meesho Technolo Rule',            'MEESHO TECHNOLO',          'Meesho',   1, 1),
+    ('Meesho Cashfree Payments Rule',   'CASHFREE PAYMENTS',        'Meesho',   1, 1),
+    ('Meesho Cashfree Escrow Rule',     'CASHFREE PAYMENTS ESCROW', 'Meesho',   1, 1),
+    ('Flipkart Settlement Rule',        'FLIPKART',                 'Flipkart', 2, 2),
+    ('Amazon Settlement Rule',          'AMAZON',                   'Amazon',   3, 3),
+    ('BharatPe Payment Rule',           'BHARATPE',                 'BharatPe', 4, 4)
 ) AS r(name, pattern, party_name, cat_id, prio)
 ON CONFLICT DO NOTHING;
 

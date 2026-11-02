@@ -12,6 +12,7 @@ import { UploadStatementModal } from './components/statements/UploadStatementMod
 import { MobileUploadPortal } from './components/mobile/MobileUploadPortal';
 import { MobileChecklistView } from './components/mobile/MobileChecklistView';
 import { Login } from './components/auth/Login';
+import { AiAssistantChat } from './components/chat/AiAssistantChat';
 import type { BankAccount, User } from './types';
 import { api } from './api/client';
 
@@ -252,6 +253,17 @@ export function App() {
           }}
         />
       )}
+
+      {/* Multilingual AI Accounting Chatbot Assistant */}
+      <AiAssistantChat 
+        onNavigateToKhatabook={(_accId) => {
+          setActiveTab('khatabook');
+        }}
+        onNavigateToSummary={(accId) => {
+          if (accId) setSelectedAccountId(accId);
+          setActiveTab('summary');
+        }}
+      />
     </div>
   );
 }

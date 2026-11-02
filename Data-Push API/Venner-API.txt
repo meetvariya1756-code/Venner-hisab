@@ -1,0 +1,34 @@
+curl -X POST "https://venner-hisab.vennerwp.com/api/khatabook/sellease-push" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account": "MANYA EMPIRE",
+    "date": "2026-08-26",
+    "entry_type": "GAVE",
+    "products": [
+      {
+        "product_name": "KIDS-WB-BGY-PC-2",
+        "quantity": 28,
+        "price": 160,
+        "total": 4480
+      },
+      {
+        "product_name": "KIDS-GB-BGY-PC-2",
+        "quantity": 10,
+        "price": 160,
+        "total": 1600
+      },
+      {
+        "product_name": "KIDS-GB-BGY-PC-1",
+        "quantity": 4,
+        "price": 160,
+        "total": 640
+      },
+      {
+        "product_name": "KIDS-WB-BGY-PC-1",
+        "quantity": 21,
+        "price": 160,
+        "total": 3360
+      }
+    ],
+    "grand_total": 10080
+  }'

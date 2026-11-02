@@ -4,21 +4,36 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.default_data import seed_default_data
-from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile, auth, khatabook
+from app.api import platforms, accounts, statements, transactions, categories, parties, rules, reports, export, mobile, auth, khatabook, chat
 
 # ── Create / migrate database tables ─────────────────────────
 Base.metadata.create_all(bind=engine)
 
-# Run simple migration to add columns to upi_screenshots if not exists
+# Run simple migration to add columns to tables if not exists
 from sqlalchemy import text
 try:
     with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS description VARCHAR(500)"))
-        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS target_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE SET NULL"))
-        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION"))
-        conn.execute(text("ALTER TABLE upi_screenshots ADD COLUMN IF NOT EXISTS entry_type VARCHAR(20)"))
+        for col, col_type in [
+            ("credit_limit", "FLOAT DEFAULT 0.0"),
+            ("due_date", "TIMESTAMP"),
+            ("upi_id", "VARCHAR(100)"),
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE bank_accounts ADD COLUMN {col} {col_type}"))
+            except Exception:
+                pass  # column already exists
+
+        for col, col_type in [
+            ("description", "VARCHAR(500)"),
+            ("target_account_id", "INTEGER"),
+            ("amount", "FLOAT"),
+            ("entry_type", "VARCHAR(20)"),
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE upi_screenshots ADD COLUMN {col} {col_type}"))
+            except Exception:
+                pass  # column already exists
 except Exception:
-    # Columns already exist or table issue
     pass
 
 # ── Seed default data once on startup (idempotent) ────────────
@@ -57,6 +72,7 @@ app.include_router(export.router, prefix="/api")
 app.include_router(mobile.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(khatabook.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 @app.get("/")

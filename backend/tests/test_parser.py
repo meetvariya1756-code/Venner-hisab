@@ -39,12 +39,53 @@ def test_meesho_categorization():
     db = SessionLocal()
     seed_default_data(db)
 
+    # 1. Existing MEESHO pattern
     party_id, cat_id, status = CategorizationService.auto_categorize(
         "NEFT AXISCN1237890859 MEESHO TECHNOLOGIES PRIVATE", db
     )
     assert party_id == 1  # Meesho party
     assert cat_id == 1    # Meesho category
     assert status == "auto_matched"
+
+    # 2. MEESHO TECHNOLO
+    party_id, cat_id, status = CategorizationService.auto_categorize(
+        "DEP TFR NEFT*UTIB0001541*AXISCN1425121811*MEESHO TECHNOLO 0099509044300 AT 64547 PANDOL BRANCH", db
+    )
+    assert party_id == 1
+    assert cat_id == 1
+    assert status == "auto_matched"
+
+    # 3. CASHFREE PAYMENTS
+    party_id, cat_id, status = CategorizationService.auto_categorize(
+        "NEFT 000506178947 CASHFREE PAYMENTS INDIA PVT LTD", db
+    )
+    assert party_id == 1
+    assert cat_id == 1
+    assert status == "auto_matched"
+
+    # 4. CASHFREE PAYMENTS ESCROW (single-line and multi-line with newline)
+    party_id, cat_id, status = CategorizationService.auto_categorize(
+        "NEFT IDFBH26063854899 CASHFREE PAYMENTS ESCROW AC", db
+    )
+    assert party_id == 1
+    assert cat_id == 1
+    assert status == "auto_matched"
+
+    party_id, cat_id, status = CategorizationService.auto_categorize(
+        "NEFT IDFBH26063854899 CASHFREE\nPAYMENTS ESCROW AC", db
+    )
+    assert party_id == 1
+    assert cat_id == 1
+    assert status == "auto_matched"
+
+    # 5. Flipkart narration remains unchanged and matched to Flipkart
+    fk_party_id, fk_cat_id, fk_status = CategorizationService.auto_categorize(
+        "NEFT FKMP12345 FLIPKART INDIA PVT LTD", db
+    )
+    assert fk_party_id == 2  # Flipkart party
+    assert fk_cat_id == 2    # Flipkart category
+    assert fk_status == "auto_matched"
+
     db.close()
 
 

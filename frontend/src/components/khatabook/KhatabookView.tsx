@@ -17,7 +17,15 @@ import {
   Check,
   Camera,
   Image,
-  Eye
+  Eye,
+  Download,
+  FileText,
+  QrCode,
+  Copy,
+  Sliders,
+  AlertTriangle,
+  Sparkles,
+  Clock,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import type { KhatabookAccount, KhatabookEntry, KhatabookSummary } from '../../types';
@@ -63,6 +71,123 @@ export function KhatabookView() {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [expandedSubKey, setExpandedSubKey] = useState<string | null>(null);
+
+  // Download PDF Modal State
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfScope, setPdfScope] = useState<'selected' | 'all'>('selected');
+  const [pdfPeriodType, setPdfPeriodType] = useState<'month' | 'year' | 'custom'>('month');
+  const [pdfYear, setPdfYear] = useState<number>(() => new Date().getFullYear());
+  const [pdfMonth, setPdfMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [pdfStartDate, setPdfStartDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [pdfEndDate, setPdfEndDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  // Account Settings Modal State (Credit Limits, Due Dates, UPI ID)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsCreditLimit, setSettingsCreditLimit] = useState('');
+  const [settingsDueDate, setSettingsDueDate] = useState('');
+  const [settingsUpiId, setSettingsUpiId] = useState('');
+  const [settingsPhone, setSettingsPhone] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // UPI QR Code & Share Modal State
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [copiedSlip, setCopiedSlip] = useState(false);
+
+  // Smart OCR / Receipt Extraction State
+  const [isParsingReceipt, setIsParsingReceipt] = useState(false);
+  const [ocrDetectedMsg, setOcrDetectedMsg] = useState<string | null>(null);
+  const handleDownloadLedgerPDF = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      const targetAccId = pdfScope === 'all' || !selectedAccount ? null : selectedAccount.id;
+      await api.downloadKhatabookPDF({
+        accountId: targetAccId,
+        periodType: pdfPeriodType,
+        year: pdfYear,
+        month: pdfMonth,
+        startDate: pdfStartDate,
+        endDate: pdfEndDate,
+      });
+      setIsPdfModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download PDF ledger');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+
+  const handleOpenSettingsModal = (acc: KhatabookAccount) => {
+    setSettingsCreditLimit(acc.credit_limit ? acc.credit_limit.toString() : '');
+    setSettingsDueDate(acc.due_date || '');
+    setSettingsUpiId(acc.upi_id || '');
+    setSettingsPhone(acc.phone_number || '');
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+    setSavingSettings(true);
+    try {
+      await api.updateKhatabookAccountSettings(selectedAccount.id, {
+        credit_limit: settingsCreditLimit ? parseFloat(settingsCreditLimit) : 0,
+        due_date: settingsDueDate || null,
+        upi_id: settingsUpiId || null,
+        phone_number: settingsPhone || null,
+      });
+      setIsSettingsModalOpen(false);
+      await loadAccounts();
+      if (selectedAccountId) await loadAccountEntries(selectedAccountId);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save account settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleBillFileChange = async (file: File | null) => {
+    setFormBillFile(file);
+    setOcrDetectedMsg(null);
+    if (!file) return;
+
+    setIsParsingReceipt(true);
+    try {
+      const ocrRes = await api.parseBillReceipt(file);
+      if (ocrRes.success && ocrRes.detected_amount) {
+        if (!formAmount || formAmount === '0') {
+          setFormAmount(ocrRes.detected_amount.toString());
+        }
+        if (ocrRes.detected_date) {
+          setFormDate(ocrRes.detected_date);
+        }
+        setOcrDetectedMsg(`Detected ₹${ocrRes.detected_amount.toLocaleString('en-IN')}`);
+      }
+    } catch {
+      // Non-blocking fallback
+    } finally {
+      setIsParsingReceipt(false);
+    }
+  };
+
+  const getWhatsAppSlipText = (acc: KhatabookAccount) => {
+    const isGive = acc.status === "YOU'LL GIVE";
+    const statusLine = isGive 
+      ? `We owe you: ₹${acc.abs_net.toLocaleString('en-IN')}` 
+      : `Payment due: ₹${acc.abs_net.toLocaleString('en-IN')}`;
+    const dueLine = acc.due_date ? `\nPayment Due Date: ${acc.due_date}` : '';
+    const upiLine = acc.upi_id ? `\nPay via UPI ID: ${acc.upi_id}` : '';
+    
+    return `*Venner Hisab Statement*\n` +
+           `Customer / Store: *${acc.name}*\n` +
+           `Net Balance: *₹${acc.abs_net.toLocaleString('en-IN')}*\n` +
+           `Status: *${statusLine}*${dueLine}${upiLine}\n\n` +
+           `Please review your ledger and confirm. Thank you!`;
+  };
 
   const loadScreenshots = async () => {
     setLoadingScreenshots(true);
@@ -450,7 +575,7 @@ export function KhatabookView() {
               </span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-slate-900">
+              <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
                 ₹{displayNet.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
               <span className={`text-xs font-bold ${isNetPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -459,24 +584,34 @@ export function KhatabookView() {
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-xs text-slate-500">Manual Ledger Management</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsLeftDrawerOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>UPI Screenshots</span>
-              </button>
-              <button
-                onClick={loadAccounts}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Refresh Ledger</span>
-              </button>
-            </div>
+          <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+            <button
+              onClick={() => {
+                setPdfScope(selectedAccount ? 'selected' : 'all');
+                setIsPdfModalOpen(true);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+              title="Download Khatabook PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>PDF</span>
+            </button>
+            <button
+              onClick={() => setIsLeftDrawerOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-bold rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+              title="View UPI Screenshots"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Screenshots</span>
+            </button>
+            <button
+              onClick={loadAccounts}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+              title="Refresh Ledger Data"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
       </div>
@@ -609,12 +744,22 @@ export function KhatabookView() {
                       <div>
                         <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                           {account.name}
+                          {account.is_overdue && (
+                            <span className="bg-rose-100 text-rose-700 text-[9px] font-black px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" /> Overdue {account.days_overdue}d
+                            </span>
+                          )}
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[11px] text-slate-400 flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {account.last_activity_date}
                           </span>
+                          {account.credit_limit && account.credit_limit > 0 && (
+                            <span className="text-[10px] text-slate-500 font-semibold">
+                              Limit: ₹{account.credit_limit.toLocaleString('en-IN')}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -652,6 +797,13 @@ export function KhatabookView() {
                   <div>
                     <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                       {selectedAccount.name}
+                      <button
+                        onClick={() => handleOpenSettingsModal(selectedAccount)}
+                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Credit Limits & Due Date"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                      </button>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Net Balance: <span className={`font-bold ${selectedAccount.status === "YOU'LL GIVE" ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -661,24 +813,82 @@ export function KhatabookView() {
                   </div>
                 </div>
 
-                {/* Reminder Action Buttons */}
+                {/* Action Buttons */}
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => {
+                      setPdfScope('selected');
+                      setIsPdfModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+                    title="Download Ledger PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
+                  <button
                     onClick={() => handleSendWhatsAppReminder(selectedAccount)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>WhatsApp</span>
                   </button>
                   <button
                     onClick={() => handleSendSMSReminder(selectedAccount)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>SMS</span>
                   </button>
                 </div>
               </div>
+
+              {/* Credit Limit & Overdue Banner (if configured) */}
+              {(selectedAccount.credit_limit || selectedAccount.due_date) && (
+                <div className="px-5 py-2.5 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-4">
+                    {selectedAccount.credit_limit && selectedAccount.credit_limit > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 font-semibold">Credit Limit:</span>
+                        <span className="font-extrabold text-slate-800">
+                          ₹{selectedAccount.credit_limit.toLocaleString('en-IN')}
+                        </span>
+                        <div className="w-24 bg-slate-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              (selectedAccount.credit_used_percent || 0) > 90 ? 'bg-rose-500' : 'bg-indigo-600'
+                            }`}
+                            style={{ width: `${Math.min(100, selectedAccount.credit_used_percent || 0)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold">{selectedAccount.credit_used_percent || 0}% used</span>
+                      </div>
+                    ) : null}
+
+                    {selectedAccount.due_date ? (
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-slate-500 font-semibold">Due Date:</span>
+                        <span className={`font-bold ${selectedAccount.is_overdue ? 'text-rose-600' : 'text-slate-800'}`}>
+                          {selectedAccount.due_date}
+                        </span>
+                        {selectedAccount.is_overdue && (
+                          <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black uppercase">
+                            Overdue {selectedAccount.days_overdue} Days
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenSettingsModal(selectedAccount)}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                  >
+                    Edit Limits
+                  </button>
+                </div>
+              )}
 
               {/* Entries Table Header */}
               <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -807,9 +1017,21 @@ export function KhatabookView() {
                   <h3 className="font-extrabold text-sm text-slate-900">All Account Statement</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Combined Give & Get totals across all accounts</p>
                 </div>
-                <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full">
-                  {accounts.length} Accounts
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setPdfScope('all');
+                      setIsPdfModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download All PDF</span>
+                  </button>
+                  <span className="text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-full">
+                    {accounts.length} Accounts
+                  </span>
+                </div>
               </div>
 
               {/* Summary Give / Get Cards */}
@@ -995,25 +1217,35 @@ export function KhatabookView() {
                     />
                   </div>
 
-                  {/* Attach Bill Dropzone */}
+                  {/* Attach Bill Dropzone with Smart OCR */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Attach Bill <span className="text-slate-400 font-normal">(Optional)</span>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Attach Bill / Receipt Photo</span>
+                      {isParsingReceipt && (
+                        <span className="text-indigo-600 text-[10px] font-bold flex items-center gap-1 animate-pulse">
+                          <Sparkles className="w-3 h-3" /> Auto-detecting details...
+                        </span>
+                      )}
                     </label>
                     <label className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/30">
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => setFormBillFile(e.target.files?.[0] || null)}
+                        onChange={(e) => handleBillFileChange(e.target.files?.[0] || null)}
                         className="hidden"
                       />
                       <Upload className="w-7 h-7 text-slate-400 mb-2" />
-                      <span className="text-xs font-bold text-slate-700">Click to upload</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">Only PNG or JPG file format supported</span>
+                      <span className="text-xs font-bold text-slate-700">Click to upload receipt</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">Auto-fills amount & date from photo</span>
                       {formBillFile && (
                         <div className="mt-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg flex items-center gap-1">
                           <Check className="w-3.5 h-3.5" />
                           {formBillFile.name}
+                        </div>
+                      )}
+                      {ocrDetectedMsg && (
+                        <div className="mt-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> {ocrDetectedMsg}
                         </div>
                       )}
                     </label>
@@ -1391,6 +1623,393 @@ export function KhatabookView() {
                 Open in New Tab
               </a>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Download Ledger PDF Modal ─────────────────────────────── */}
+      {isPdfModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-r from-rose-600 to-indigo-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Download Khatabook PDF</h3>
+                  <p className="text-xs text-rose-100">Monthly, Yearly, or Custom Ledger Statement</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPdfModalOpen(false)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Account Scope Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  1. Select Account Scope
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setPdfScope('selected')}
+                    disabled={!selectedAccount}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      pdfScope === 'selected' && selectedAccount
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    <span>{selectedAccount ? selectedAccount.name : 'Select Account'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfScope('all')}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      pdfScope === 'all'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>All Accounts ({accounts.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Period Type Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  2. Select Statement Period
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl text-center">
+                  {[
+                    { id: 'month', label: 'Monthly' },
+                    { id: 'year', label: 'Yearly' },
+                    { id: 'custom', label: 'Custom' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPdfPeriodType(tab.id as any)}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        pdfPeriodType === tab.id
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Monthly Inputs */}
+              {pdfPeriodType === 'month' && (
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Month</label>
+                    <select
+                      value={pdfMonth}
+                      onChange={(e) => setPdfMonth(Number(e.target.value))}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    >
+                      {[
+                        { num: 1, name: 'January' },
+                        { num: 2, name: 'February' },
+                        { num: 3, name: 'March' },
+                        { num: 4, name: 'April' },
+                        { num: 5, name: 'May' },
+                        { num: 6, name: 'June' },
+                        { num: 7, name: 'July' },
+                        { num: 8, name: 'August' },
+                        { num: 9, name: 'September' },
+                        { num: 10, name: 'October' },
+                        { num: 11, name: 'November' },
+                        { num: 12, name: 'December' },
+                      ].map(m => (
+                        <option key={m.num} value={m.num}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Year</label>
+                    <select
+                      value={pdfYear}
+                      onChange={(e) => setPdfYear(Number(e.target.value))}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    >
+                      {[2027, 2026, 2025, 2024, 2023].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Yearly Inputs */}
+              {pdfPeriodType === 'year' && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Select Year</label>
+                  <select
+                    value={pdfYear}
+                    onChange={(e) => setPdfYear(Number(e.target.value))}
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  >
+                    {[2027, 2026, 2025, 2024, 2023].map(y => (
+                      <option key={y} value={y}>Full Calendar Year {y}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Custom Date Range Inputs */}
+              {pdfPeriodType === 'custom' && (
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">From Date</label>
+                    <input
+                      type="date"
+                      value={pdfStartDate}
+                      onChange={(e) => setPdfStartDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">To Date</label>
+                    <input
+                      type="date"
+                      value={pdfEndDate}
+                      onChange={(e) => setPdfEndDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Summary Note */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Report Scope:</span>
+                <span className="font-extrabold text-slate-900">
+                  {pdfScope === 'all' ? 'All Accounts Combined' : (selectedAccount?.name || 'Selected Account')}
+                  {' • '}
+                  {pdfPeriodType === 'month' && `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][pdfMonth - 1]} ${pdfYear}`}
+                  {pdfPeriodType === 'year' && `Year ${pdfYear}`}
+                  {pdfPeriodType === 'custom' && `${pdfStartDate} to ${pdfEndDate}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsPdfModalOpen(false)}
+                disabled={isDownloadingPdf}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadLedgerPDF}
+                disabled={isDownloadingPdf}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-xl shadow-md shadow-rose-200 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDownloadingPdf ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Generating PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Download PDF Statement</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── UPI Payment QR & WhatsApp Slip Modal ───────────────── */}
+      {isQrModalOpen && selectedAccount && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 bg-gradient-to-r from-indigo-600 to-emerald-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <QrCode className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">UPI Payment & WhatsApp Slip</h3>
+                  <p className="text-xs text-indigo-100">{selectedAccount.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsQrModalOpen(false)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 text-center">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 inline-block mx-auto shadow-inner">
+                {/* Dynamic QR Code for UPI Intent */}
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                    `upi://pay?pa=${selectedAccount.upi_id || 'venner@okhdfcbank'}&pn=${encodeURIComponent(
+                      selectedAccount.name
+                    )}&am=${selectedAccount.abs_net}&cu=INR&tn=${encodeURIComponent('Venner Hisab Settlement')}`
+                  )}`}
+                  alt="UPI Payment QR Code"
+                  className="w-44 h-44 mx-auto rounded-lg"
+                />
+                <p className="text-[11px] font-extrabold text-slate-700 mt-2">
+                  Scan to Pay ₹{selectedAccount.abs_net.toLocaleString('en-IN')}
+                </p>
+                <span className="text-[10px] text-slate-400">
+                  UPI ID: {selectedAccount.upi_id || 'venner@okhdfcbank'}
+                </span>
+              </div>
+
+              {/* Formatted WhatsApp Slip Preview */}
+              <div className="text-left bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono whitespace-pre-wrap">
+                {getWhatsAppSlipText(selectedAccount)}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(getWhatsAppSlipText(selectedAccount));
+                  setCopiedSlip(true);
+                  setTimeout(() => setCopiedSlip(false), 2000);
+                }}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {copiedSlip ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedSlip ? 'Copied Slip!' : 'Copy Slip'}</span>
+              </button>
+              <button
+                onClick={() => handleSendWhatsAppReminder(selectedAccount)}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-200 cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Send WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Customer Account Settings Modal ───────────────────────── */}
+      {isSettingsModalOpen && selectedAccount && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 bg-gradient-to-r from-indigo-700 to-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Sliders className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Account & Credit Settings</h3>
+                  <p className="text-xs text-indigo-100">{selectedAccount.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveSettings} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Credit Limit (₹)
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g. 50000"
+                  value={settingsCreditLimit}
+                  onChange={(e) => setSettingsCreditLimit(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Set maximum allowable credit balance for this customer.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Payment Due Date
+                </label>
+                <input
+                  type="date"
+                  value={settingsDueDate}
+                  onChange={(e) => setSettingsDueDate(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Overdue warnings will trigger if unpaid after this date.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Customer / Vendor UPI ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. customer@okhdfcbank"
+                  value={settingsUpiId}
+                  onChange={(e) => setSettingsUpiId(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Used for 1-click UPI QR Code generation.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  WhatsApp Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={settingsPhone}
+                  onChange={(e) => setSettingsPhone(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSettings}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  {savingSettings ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
